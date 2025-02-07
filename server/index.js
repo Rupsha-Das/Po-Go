@@ -4,6 +4,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const app = express();
 const User = require("./user.model.js")
+const mongoose = require("mongoose")
 
 const server = http.createServer(app);
 
@@ -12,6 +13,10 @@ app.use(express.json())
 app.get("/",(req,res)=>{
     res.send("Server running fine!!!!!!")
 })
+
+
+const machineToUserEmail = new Map();
+const userEmailToMachine = new Map();
 
 
 
@@ -69,6 +74,27 @@ app.post('/signin',async (req,res)=>{
         }
     }
     
+})
+app.post('/update-posture',async (req,res)=>{
+    const {machineId,posture}=req.body;
+    // const email = machineToUserEmail.get(machineId);
+    const email="rick@gmail.com";
+    let result  = await User.findOne({email});
+    
+    if(result){
+        await User.updateOne({email},{
+            $set:{posture:[...posture,...result.posture]}
+        })
+        res.send({
+            status:200,
+            msg:"Success!!",
+        })
+    }else {
+        res.send({
+            status:400,
+            msg:"Failed!!"
+        })
+    }
 })
 
 
