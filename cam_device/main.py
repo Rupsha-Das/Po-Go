@@ -9,12 +9,23 @@ from datetime import datetime
 import time
 import multiprocessing
 from dotenv import load_dotenv
-import websocket  # Make sure websocket-client is installed
-
+import websocket
+import threading
 brk = False
+# ------------------ Global Data and Locks ------------------
+posture_data = {
+    "timestamp": "",
+    "curvature": None,
+    "trust": None,
+    "neckAngle": {"value": None, "confidence": None},
+    "backAngle": {"value": None, "confidence": None},
+    "armAngle": {1: {"value": None, "confidence": None}, 2: {"value": None, "confidence": None}},
+    "kneeAngle": {1: {"value": None, "confidence": None}, 2: {"value": None, "confidence": None}},
+    "postureStatus": None
+}
+posture_data_lock = threading.Lock()
 
 def get_posture_status():
-    # Replace with your actual posture status logic.
     return "unknown"
 
 
@@ -34,9 +45,10 @@ async def connect_to_server(ws_server):
         print("Connected to server.")
         return ws
     except Exception as e:
-        print(f"Error connecting to server: {e}")
+        print(f"-|Error connecting to server: {e}\n |closing (connect_to_server)")
         return None
-    
+
+
 def request_device_id(ws_server):
     try:
         ws = websocket.create_connection(ws_server)
@@ -50,7 +62,8 @@ def request_device_id(ws_server):
             update_env_once("DEVICE_ID", device_id)
         ws.close()
     except Exception as e:
-        print(f"Error requesting device ID: {e}")
+        print(f"-|Error requesting device ID: {e} \n |closing (request_device_id)")
+
 
 async def receive_updates(ws):
     while True:
@@ -60,9 +73,11 @@ async def receive_updates(ws):
             print(f"Received: {data}")
             # Process received data as needed.
         except Exception as e:
-            print(f"Error receiving data: {e}")
+            print(f"-|Error receiving data: {e}")
             if brk:
+                print(" |closing (receive_updates)")
                 break
+
 
 async def send_ws_updates(ws_server, device_id=None):
     if not device_id:
@@ -99,6 +114,7 @@ async def send_ws_updates(ws_server, device_id=None):
             pass
         await asyncio.sleep(30)  # non-blocking sleep
 
+
 async def main_ws_func(ws_server, device_id=None):
     ws = await connect_to_server(ws_server)
     if not ws:
@@ -111,38 +127,268 @@ async def main_ws_func(ws_server, device_id=None):
     # Wait for both tasks to run concurrently
     await asyncio.gather(receive_task, send_task)
 
-def posture_detection():
-    # Initialize MediaPipe Pose
-    mp_pose = mp.solutions.pose
-    mp_drawing = mp.solutions.drawing_utils
-    pose = mp_pose.Pose()
 
-    # Start video capture
-    cap = cv2.VideoCapture(0)
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Convert BGR to RGB as MediaPipe requires RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb_frame)
-
-        if results.pose_landmarks:
-            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-        cv2.imshow('Pose Detection', frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-# Synchronous wrapper for the async function
 def run_main_ws_func(ws_server, device_id):
     asyncio.run(main_ws_func(ws_server, device_id))
+
+
+def posture_detection(stream=True):
+    # Initialize MediaPipe Pose
+    mp_pose = mp.solutions.pose
+    
+    mp_drawing = mp.solutions.drawing_utils
+    # pose = mp_pose.Pose(model_complexity=2, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    pose = mp_pose.Pose(static_image_mode=False, enable_segmentation=True)
+
+    # ------------------ Ray Intersection Helper ------------------
+    def ray_segment_intersection(ray_origin, ray_direction, pt1, pt2):
+        """
+        Computes the intersection between a ray (ray_origin + t*ray_direction, t>=0)
+        and a line segment from pt1 to pt2.
+        """
+        segment_vec = pt2 - pt1
+        cross_val = np.cross(ray_direction, segment_vec)
+        if abs(cross_val) < 1e-6:
+            return None
+        diff = pt1 - ray_origin
+        t = np.cross(diff, segment_vec) / cross_val
+        s = np.cross(diff, ray_direction) / cross_val
+        if t >= 0 and 0 <= s <= 1:
+            intersection_point = ray_origin + t * ray_direction
+            return intersection_point, t
+        return None
+
+
+    # ------------------ Curvature and Trust Calculation ------------------
+    def calculate_curvature_and_trust(frame, results):
+        if not results.pose_landmarks:
+            return 0, 0, frame
+
+        landmarks = results.pose_landmarks.landmark
+        h, w = frame.shape[:2]
+
+        # Extract key points
+        left_shoulder = np.array([landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x * w,
+                                landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y * h])
+        right_shoulder = np.array([landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * w,
+                                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * h])
+        left_hip = np.array([landmarks[mp_pose.PoseLandmark.LEFT_HIP].x * w,
+                            landmarks[mp_pose.PoseLandmark.LEFT_HIP].y * h])
+        right_hip = np.array([landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x * w,
+                            landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * h])
+        nose = np.array([landmarks[mp_pose.PoseLandmark.NOSE].x * w,
+                        landmarks[mp_pose.PoseLandmark.NOSE].y * h])
+
+        # Compute midpoints and central line
+        shoulder_mid = (left_shoulder + right_shoulder) / 2
+        hip_mid = (left_hip + right_hip) / 2
+        line_a_mid = (shoulder_mid + hip_mid) / 2
+
+        # Determine the true perpendicular vector to the shoulder-hip line.
+        direction_vector = hip_mid - shoulder_mid
+        dx, dy = direction_vector
+        perpendicular_vector = np.array([-dy, dx], dtype=np.float32)
+        perpendicular_vector /= (np.linalg.norm(perpendicular_vector) + 1e-6)
+
+        # Ensure the perpendicular vector points away from the face.
+        torso_center_to_nose = nose - line_a_mid
+        if np.dot(perpendicular_vector, torso_center_to_nose) > 0:
+            perpendicular_vector *= -1
+
+        # Compute trust based on torso aspect ratio.
+        torso_width = np.linalg.norm(left_shoulder - right_shoulder)
+        torso_height = np.linalg.norm(shoulder_mid - hip_mid)
+        aspect_ratio = torso_height / (torso_width + 1e-6)
+        trust = np.clip(aspect_ratio / 2.5, 0, 1)
+
+        # Use segmentation mask to find intersection of the ray with the back contour.
+        mask = (results.segmentation_mask > 0.5).astype('uint8') * 255
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        point_a = None
+        best_t = np.inf
+
+        if contours:
+            contour = contours[0][:, 0, :]
+            for i in range(len(contour) - 1):
+                pt1 = contour[i].astype(np.float32)
+                pt2 = contour[i+1].astype(np.float32)
+                result = ray_segment_intersection(line_a_mid, perpendicular_vector, pt1, pt2)
+                if result is not None:
+                    intersection_point, t_val = result
+                    if t_val < best_t:
+                        best_t = t_val
+                        point_a = intersection_point
+            # Check last segment connecting end to beginning (closed contour)
+            pt1 = contour[-1].astype(np.float32)
+            pt2 = contour[0].astype(np.float32)
+            result = ray_segment_intersection(line_a_mid, perpendicular_vector, pt1, pt2)
+            if result is not None:
+                intersection_point, t_val = result
+                if t_val < best_t:
+                    best_t = t_val
+                    point_a = intersection_point
+
+        if point_a is not None:
+            distance = np.linalg.norm(point_a - line_a_mid)
+            # Instead of using torso_height alone, normalize by overall body size:
+            spine_length = np.linalg.norm(shoulder_mid - hip_mid)
+            neck_length = np.linalg.norm(nose - shoulder_mid)
+            body_size = spine_length + neck_length
+            curvature = distance / (body_size + 1e-6)
+        else:
+            curvature = 0
+
+        debug_frame = frame.copy()
+        if point_a is not None:
+            cv2.line(debug_frame, tuple(shoulder_mid.astype(int)), tuple(hip_mid.astype(int)), (0, 255, 0), 2)
+            perp_length = 100
+            perp_end = line_a_mid + perpendicular_vector * perp_length
+            cv2.line(debug_frame, tuple(line_a_mid.astype(int)), tuple(perp_end.astype(int)), (255, 0, 0), 2)
+            cv2.line(debug_frame, tuple(line_a_mid.astype(int)), tuple(point_a.astype(int)), (0, 165, 255), 2)
+            cv2.circle(debug_frame, tuple(point_a.astype(int)), 5, (0, 0, 255), -1)
+
+        cv2.putText(debug_frame, f"Curvature: {curvature:.2f}", (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        cv2.putText(debug_frame, f"Trust: {trust:.2f}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0) if trust > 0.7 else (0, 0, 255), 2)
+
+        return curvature, trust, debug_frame
+
+    # ------------------ Posture Angle Computation and Drawing ------------------
+    def process_posture_angles(frame, results):
+        h, w = frame.shape[:2]
+        get_coords = lambda l: (int(l.x * w), int(l.y * h))
+        angles = {
+            "neckAngle": {"value": None, "confidence": None},
+            "backAngle": {"value": None, "confidence": None},
+            "armAngle": {1: {"value": None, "confidence": None}, 2: {"value": None, "confidence": None}},
+            "kneeAngle": {1: {"value": None, "confidence": None}, 2: {"value": None, "confidence": None}},
+        }
+        if not results.pose_landmarks:
+            return angles
+
+        landmarks = results.pose_landmarks.landmark
+        mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
+        # Neck Angle
+        nose = landmarks[mp_pose.PoseLandmark.NOSE]
+        left_shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
+        right_shoulder = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER]
+        left_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
+        right_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
+        if (nose.visibility > 0.5 and left_shoulder.visibility > 0.5 and
+            right_shoulder.visibility > 0.5 and left_hip.visibility > 0.5 and
+            right_hip.visibility > 0.5):
+            shoulder_left_coord = get_coords(left_shoulder)
+            shoulder_right_coord = get_coords(right_shoulder)
+            hip_left_coord = get_coords(left_hip)
+            hip_right_coord = get_coords(right_hip)
+            shoulder_mid_coord = get_midpoint(shoulder_left_coord, shoulder_right_coord)
+            hip_mid_coord = get_midpoint(hip_left_coord, hip_right_coord)
+            fake_shoulder = FakeLandmark(shoulder_mid_coord[0] / w, shoulder_mid_coord[1] / h,
+                                        min(left_shoulder.visibility, right_shoulder.visibility))
+            fake_hip = FakeLandmark(hip_mid_coord[0] / w, hip_mid_coord[1] / h,
+                                    min(left_hip.visibility, right_hip.visibility))
+            angle, conf = safe_draw_and_compute_angle(frame, nose, fake_shoulder, fake_hip, (0, 255, 0), get_coords)
+            angles["neckAngle"]["value"] = angle
+            angles["neckAngle"]["confidence"] = conf
+
+        # Back Angle (using left-side landmarks)
+        left_knee = landmarks[mp_pose.PoseLandmark.LEFT_KNEE]
+        angle, conf = safe_draw_and_compute_angle(frame, left_knee, left_hip, left_shoulder, (255, 255, 0), get_coords)
+        angles["backAngle"]["value"] = angle
+        angles["backAngle"]["confidence"] = conf
+
+        # Left Arm Angle
+        left_elbow = landmarks[mp_pose.PoseLandmark.LEFT_ELBOW]
+        left_wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
+        angle, conf = safe_draw_and_compute_angle(frame, left_shoulder, left_elbow, left_wrist, (0, 0, 255), get_coords)
+        angles["armAngle"][1]["value"] = angle
+        angles["armAngle"][1]["confidence"] = conf
+
+        # Right Arm Angle
+        right_elbow = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW]
+        right_wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
+        angle, conf = safe_draw_and_compute_angle(frame, right_shoulder, right_elbow, right_wrist, (255, 0, 255), get_coords)
+        angles["armAngle"][2]["value"] = angle
+        angles["armAngle"][2]["confidence"] = conf
+
+        # Left Knee Angle
+        left_ankle = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE]
+        angle, conf = safe_draw_and_compute_angle(frame, left_hip, left_knee, left_ankle, (255, 165, 0), get_coords)
+        angles["kneeAngle"][1]["value"] = angle
+        angles["kneeAngle"][1]["confidence"] = conf
+
+        # Right Knee Angle
+        right_knee = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE]
+        right_ankle = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE]
+        angle, conf = safe_draw_and_compute_angle(frame, right_hip, right_knee, right_ankle, (255, 165, 0), get_coords)
+        angles["kneeAngle"][2]["value"] = angle
+        angles["kneeAngle"][2]["confidence"] = conf
+
+        return angles
+
+
+    # ------------------ Video Capture and Processing Thread ------------------
+    # Global variable for smoothed curvature and smoothing factor
+    smoothed_curvature = None
+    alpha = 0.1  # Smoothing factor (0 < alpha <= 1). Lower values smooth more.
+
+    def update_posture_data():
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        display_scale = 1
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame = cv2.resize(frame, (640, 480))
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(frame_rgb)
+
+            curvature, trust, debug_frame = calculate_curvature_and_trust(frame, results)
+            angle_data = process_posture_angles(debug_frame, results)
+
+            # Apply exponential smoothing to the curvature value
+            if smoothed_curvature is None:
+                smoothed_curvature = curvature
+            elif curvature > 0:
+                smoothed_curvature = alpha * curvature + (1 - alpha) * smoothed_curvature
+
+            # Optionally, you can display the smoothed curvature for debugging
+            cv2.putText(debug_frame, f"Smoothed Curvature: {smoothed_curvature:.2f}", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 0), 2)
+
+            if trust > 0.7 and smoothed_curvature > 0.45:
+                cv2.putText(debug_frame, "BAD POSTURE!", (50, 80),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            with posture_data_lock:
+                posture_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                posture_data["curvature"] = smoothed_curvature  # Use the smoothed value
+                posture_data["trust"] = trust
+                posture_data["neckAngle"] = angle_data["neckAngle"]
+                posture_data["backAngle"] = angle_data["backAngle"]
+                posture_data["armAngle"] = angle_data["armAngle"]
+                posture_data["kneeAngle"] = angle_data["kneeAngle"]
+                posture_data["postureStatus"] = "BAD" if (trust > 0.7 and smoothed_curvature > 0.45) else "GOOD"
+
+            frame_display = cv2.resize(debug_frame, None, fx=display_scale, fy=display_scale)
+            cv2.imshow("Pose Detection", frame_display)
+            if cv2.waitKey(10) & 0xFF == ord("q"):
+                break
+
+            time.sleep(0.03)
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+    update_posture_data()
+
+
 
 if __name__ == "__main__":
     load_dotenv()
