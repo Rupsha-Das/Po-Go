@@ -1,4 +1,5 @@
 const express = require("express")
+const cors = require("cors")
 require('dotenv').config()
 const http = require("http");
 const { Server } = require("socket.io");
@@ -9,6 +10,12 @@ const mongoose = require("mongoose")
 const server = http.createServer(app);
 
 app.use(express.json())
+app.use(
+    cors({
+        origin: true,
+        credentials: true,
+    })
+);
 
 app.get("/",(req,res)=>{
     res.send("Server running fine!!!!!!")
