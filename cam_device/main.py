@@ -25,6 +25,14 @@ posture_data = {
 }
 posture_data_lock = threading.Lock()
 
+VIDEO_SOURCE = 0
+
+class FakeLandmark:
+    def __init__(self, x, y, visibility):
+        self.x = x
+        self.y = y
+        self.visibility = visibility
+
 def get_posture_status():
     return "unknown"
 
@@ -38,6 +46,7 @@ def update_env_once(key, value, env_file=".env"):
     with open(env_file, "a") as file:
         file.write(f"\n{key}={value}\n")
     load_dotenv()  # Reload updated environment variables
+
 
 async def connect_to_server(ws_server):
     try:
@@ -132,20 +141,53 @@ def run_main_ws_func(ws_server, device_id):
     asyncio.run(main_ws_func(ws_server, device_id))
 
 
+smoothed_curvature = None
+alpha = 0.1 
+
 def posture_detection(stream=True):
     # Initialize MediaPipe Pose
     mp_pose = mp.solutions.pose
     
     mp_drawing = mp.solutions.drawing_utils
-    # pose = mp_pose.Pose(model_complexity=2, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    # pose = mp_pose.Pose(model_complexity=2, static_image_mode=False, enable_segmentation=True, min_detection_confidence=0.5, min_tracking_confidence=0.5)
     pose = mp_pose.Pose(static_image_mode=False, enable_segmentation=True)
 
-    # ------------------ Ray Intersection Helper ------------------
+    def get_midpoint(point1, point2):
+        return (int((point1[0] + point2[0]) / 2), int((point1[1] + point2[1]) / 2))
+
+    def draw_bold_line(frame, point1, point2, color, thickness):
+        cv2.line(frame, point1, point2, color, thickness)
+
+    def draw_text_with_outline(frame, text, position, scale, color, thickness=2):
+        cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thickness + 2)
+        cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+
+    def calculate_angle(p1, p2, p3):
+        v1 = np.array([p1[0] - p2[0], p1[1] - p2[1]], dtype=np.float32)
+        v2 = np.array([p3[0] - p2[0], p3[1] - p2[1]], dtype=np.float32)
+        norm1 = np.linalg.norm(v1)
+        norm2 = np.linalg.norm(v2)
+        if norm1 == 0 or norm2 == 0:
+            return 0
+        dot = np.dot(v1, v2)
+        angle_rad = np.arccos(dot / (norm1 * norm2))
+        angle_deg = np.degrees(angle_rad)
+        return angle_deg
+
+    def safe_draw_and_compute_angle(frame, l1, l2, l3, color, get_coords):
+        if l1.visibility > 0.5 and l2.visibility > 0.5 and l3.visibility > 0.5:
+            p1 = get_coords(l1)
+            p2 = get_coords(l2)
+            p3 = get_coords(l3)
+            angle = calculate_angle(p1, p2, p3)
+            conf = min(l1.visibility, l2.visibility, l3.visibility)
+            draw_bold_line(frame, p1, p2, color, 4)
+            draw_bold_line(frame, p2, p3, color, 4)
+            draw_text_with_outline(frame, f"{int(angle)}°", p2, 0.8, color)
+            return angle, conf
+        return None, None
+
     def ray_segment_intersection(ray_origin, ray_direction, pt1, pt2):
-        """
-        Computes the intersection between a ray (ray_origin + t*ray_direction, t>=0)
-        and a line segment from pt1 to pt2.
-        """
         segment_vec = pt2 - pt1
         cross_val = np.cross(ray_direction, segment_vec)
         if abs(cross_val) < 1e-6:
@@ -158,8 +200,6 @@ def posture_detection(stream=True):
             return intersection_point, t
         return None
 
-
-    # ------------------ Curvature and Trust Calculation ------------------
     def calculate_curvature_and_trust(frame, results):
         if not results.pose_landmarks:
             return 0, 0, frame
@@ -254,7 +294,6 @@ def posture_detection(stream=True):
 
         return curvature, trust, debug_frame
 
-    # ------------------ Posture Angle Computation and Drawing ------------------
     def process_posture_angles(frame, results):
         h, w = frame.shape[:2]
         get_coords = lambda l: (int(l.x * w), int(l.y * h))
@@ -329,13 +368,9 @@ def posture_detection(stream=True):
         return angles
 
 
-    # ------------------ Video Capture and Processing Thread ------------------
-    # Global variable for smoothed curvature and smoothing factor
-    smoothed_curvature = None
-    alpha = 0.1  # Smoothing factor (0 < alpha <= 1). Lower values smooth more.
-
     def update_posture_data():
-        cap = cv2.VideoCapture(0)
+        global smoothed_curvature
+        cap = cv2.VideoCapture(VIDEO_SOURCE)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         display_scale = 1
@@ -358,7 +393,6 @@ def posture_detection(stream=True):
             elif curvature > 0:
                 smoothed_curvature = alpha * curvature + (1 - alpha) * smoothed_curvature
 
-            # Optionally, you can display the smoothed curvature for debugging
             cv2.putText(debug_frame, f"Smoothed Curvature: {smoothed_curvature:.2f}", (10, 90),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 0), 2)
 
@@ -368,7 +402,7 @@ def posture_detection(stream=True):
 
             with posture_data_lock:
                 posture_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                posture_data["curvature"] = smoothed_curvature  # Use the smoothed value
+                posture_data["curvature"] = smoothed_curvature
                 posture_data["trust"] = trust
                 posture_data["neckAngle"] = angle_data["neckAngle"]
                 posture_data["backAngle"] = angle_data["backAngle"]
