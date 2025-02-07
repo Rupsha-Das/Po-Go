@@ -19,6 +19,21 @@ const machineToUserEmail = new Map();
 const userEmailToMachine = new Map();
 
 
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        credentials: true,
+    },
+});
+
+
+
+io.on('connection',(socket)=>{
+  console.log(`user connected - ${socket.id}`)
+  
+})
+
+
 
 app.get('/login',async (req,res)=>{
     const {email,password}=req.body;
