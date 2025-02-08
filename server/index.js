@@ -25,7 +25,7 @@ app.get("/",(req,res)=>{
 const producers = new Map();
 const consumers = new Map();
 const consumerEmails = new Map();
-producers.set(4444,null)
+// producers.set(4444,null)
 
 function printPC(){
     console.log("producers\n___________");
