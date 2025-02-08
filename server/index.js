@@ -125,8 +125,28 @@ io.on('connection',(socket)=>{
 })
 
 
+app.post('/user-data',async (req,res)=>{
+    const {email}=req.body;
+    let result  = await User.findOne({email});
+    
+    if(result){
+        res.send({
+            status:200,
+            msg:"Success!!",
+            data:result
+        })
+    }else {
+        res.send({
+            status:400,
+            msg:"Invalid email!!",
+            data:null
+        })
+    }
+    
+    
+})
 
-app.get('/login',async (req,res)=>{
+app.post('/login',async (req,res)=>{
     const {email,password}=req.body;
     let result  = await User.findOne({email});
     
