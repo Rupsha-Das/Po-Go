@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { AlertCircle, Camera, Clock, Pause, Play, RefreshCw } from "lucide-react"
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import { useToast } from "@/hooks/use-toast"
 
 
@@ -42,16 +42,24 @@ export default function LivePosture() {
     return () => clearInterval(interval)
   }, [isRecording, toast])
 
-  const [socket, setSocket] = useState(undefined);
+  interface socketType {
+    msg: string;
+  }
+
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io("https://po-go.onrender.com/");
+    const newSocket: Socket = io("https://po-go.onrender.com/");
+    setSocket(newSocket);
 
-    setSocket(socket);
 
-    socket.on("connect", (data) => {
-      socket.emit('register', { type: "consumer", email: "rick@gmail.com" });
-      socket.on('connect-to-producer-result', (data) => {
+    type ConnectToProducerResult = {
+      msg: string;
+    };
+
+    newSocket.on("connect", () => {
+      newSocket.emit('register', { type: "consumer", email: "rick@gmail.com" });
+      newSocket.on('connect-to-producer-result', (data: ConnectToProducerResult) => {
         console.log(data.msg)
         //use this data to show msg to the user
         if (data.msg == "Connected to Device") {
@@ -75,25 +83,16 @@ export default function LivePosture() {
 
     return () => {
       // console.log("disconnecting");
-      socket.disconnect();
+      newSocket.disconnect();
     }
 
   }, [])
 
   const connectToProducer = () => {
-    if (socket !== undefined) {
+    if (socket !== null) {
       socket.emit("connect-to-producer", {});
     }
   }
-
-  // useEffect(() => {
-  //   if (socket) {
-  //     const connectToProducer = () => {
-  //       socket.emit("connect-to-producer", {});
-  //     }
-  //   }
-  // }, [socket])
-
 
   const startCamera = async () => {
     try {
@@ -138,7 +137,7 @@ export default function LivePosture() {
   return (
     <div className="container py-8">
       <div className="my-5">
-        <Button size={"lg"} disabled={socket == undefined || isCameraConnected}
+        <Button size={"lg"} disabled={socket == null || isCameraConnected}
           className="" onClick={connectToProducer}>{isCameraConnected ? "Connected" : "Connect to a camera"}</Button>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
