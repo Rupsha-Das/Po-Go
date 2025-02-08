@@ -1,9 +1,16 @@
+"use client"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Shield, Timer, Zap } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useEffect, useState } from "react";
+
+import { io } from "socket.io-client";
+
 
 export default function Home() {
+
+
   return (
     <div className="flex flex-col">
       {/* Hero Section */}

@@ -4,15 +4,19 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Camera, Clock, Pause, Play, RefreshCw } from "lucide-react"
+import { io } from "socket.io-client";
+import { useToast } from "@/hooks/use-toast"
+
 
 export default function LivePosture() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [sittingTime, setSittingTime] = useState(0)
   const [badPostureTime, setBadPostureTime] = useState(0)
+  const [isCameraConnected, setIsCameraConnected] = useState(false);
   const { toast } = useToast()
+
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -37,6 +41,59 @@ export default function LivePosture() {
     }
     return () => clearInterval(interval)
   }, [isRecording, toast])
+
+  const [socket, setSocket] = useState(undefined);
+
+  useEffect(() => {
+    const socket = io("https://po-go.onrender.com/");
+
+    setSocket(socket);
+
+    socket.on("connect", (data) => {
+      socket.emit('register', { type: "consumer", email: "rick@gmail.com" });
+      socket.on('connect-to-producer-result', (data) => {
+        console.log(data.msg)
+        //use this data to show msg to the user
+        if (data.msg == "Connected to Device") {
+          setIsCameraConnected(true);
+          toast(
+            {
+              title: "Connected to Camera",
+              description: `${data.msg}. If you move to any tab, the camera will be disconnected.`,
+            }
+          )
+        } else {
+          toast(
+            {
+              title: "Unable to connect to Camera",
+              description: `${data.msg}. Please try again.`,
+              variant: "destructive",
+            })
+        }
+      })
+    });
+
+    return () => {
+      // console.log("disconnecting");
+      socket.disconnect();
+    }
+
+  }, [])
+
+  const connectToProducer = () => {
+    if (socket !== undefined) {
+      socket.emit("connect-to-producer", {});
+    }
+  }
+
+  // useEffect(() => {
+  //   if (socket) {
+  //     const connectToProducer = () => {
+  //       socket.emit("connect-to-producer", {});
+  //     }
+  //   }
+  // }, [socket])
+
 
   const startCamera = async () => {
     try {
@@ -80,6 +137,10 @@ export default function LivePosture() {
 
   return (
     <div className="container py-8">
+      <div className="my-5">
+        <Button size={"lg"} disabled={socket == undefined || isCameraConnected}
+          className="" onClick={connectToProducer}>{isCameraConnected ? "Connected" : "Connect to a camera"}</Button>
+      </div>
       <div className="grid gap-6 md:grid-cols-2">
         {/* Camera Feed */}
         <Card className="p-4">
@@ -111,6 +172,7 @@ export default function LivePosture() {
                 </>
               )}
             </Button>
+
             <Button onClick={resetSession} variant="outline" size="lg">
               <RefreshCw className="mr-2 h-4 w-4" />
               Reset
@@ -156,6 +218,6 @@ export default function LivePosture() {
           </Card>
         </div>
       </div>
-    </div>
+    </div >
   )
 }
