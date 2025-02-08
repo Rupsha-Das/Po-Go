@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { ActivitySquare, Divide } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -20,11 +20,16 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const emailFromLocalstorae = window.localStorage.getItem("po_go_email");
-  const nameFromLocalstorage = window.localStorage.getItem("po_go_name");
 
-  const [email, setEmail] = useState<string | null>(emailFromLocalstorae);
-  const [name, setName] = useState<string | null>(nameFromLocalstorage);
+
+  const [email, setEmail] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEmail(window.localStorage.getItem("po_go_email"));
+    setName(window.localStorage.getItem("po_go_name"));
+  }, [])
+
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -54,7 +59,7 @@ export default function Navbar() {
           </div>
         </div>
         {/* if logged in then dont show the login button */}
-        <div className="flex flex-col">
+        <div className="flex flex-col ml-10">
           {name ? <div className="text-md">Hello, {email}</div> :
             email ? <div className="text-md">Hello, </div> :
               <Link href={"/login"}>
