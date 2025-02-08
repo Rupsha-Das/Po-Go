@@ -2,6 +2,8 @@
 
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import {
   LineChart,
   Line,
@@ -73,6 +75,32 @@ const CustomLineChart = ({ data, xKey }: { data: any[], xKey: string }) => (
 )
 
 export default function Dashboard() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (window.localStorage.getItem("po_go_email")) {
+      setEmail(window.localStorage.getItem("po_go_email"));
+      setLoading(false)
+    } else {
+      router.replace("/login");
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="honeycomb">
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>)
+  }
+
   return (
     <div className="container py-8">
       <div className="grid gap-6">
