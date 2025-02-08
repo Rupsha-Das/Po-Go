@@ -36,6 +36,10 @@ function printPC(){
     for(const [key,val] of consumers){
         console.log(`${key} - ${val}`);
     }
+    console.log("emails\n___________");
+    for(const [key,val] of consumerEmails){
+        console.log(`${key} - ${val}`);
+    }
 }
 
 
@@ -84,6 +88,7 @@ io.on('connection',(socket)=>{
     printPC()
     console.log(`consumerId:${consumerId} and consumerEmail:${consumerEmail}`)
     let result  = await User.findOne({email:consumerEmail});
+    console.log(result)
     let msg;
     if(!result){
         msg="User not exists!!"
@@ -91,9 +96,10 @@ io.on('connection',(socket)=>{
         await User.updateOne({email:consumerEmail},{
             $set:{posture:[...data,...result.posture]}
         })
-        msg="Success";
+        msg="Successful update";
     }
-    socket.emit('posture-data-updates',{msg});
+    console.log(msg);
+    socket.emit('posture-data-update',{msg});
     
   })
   
