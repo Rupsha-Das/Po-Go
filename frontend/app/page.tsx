@@ -10,7 +10,14 @@ import { io } from "socket.io-client";
 
 export default function Home() {
 
- 
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEmail(window.localStorage.getItem("po_go_email"));
+    console.log(window.localStorage.getItem("po_go_email"))
+    console.log(window.localStorage.getItem("po_go_name"))
+  }, [])
+
 
   return (
     <div className="flex flex-col">
@@ -27,13 +34,13 @@ export default function Home() {
           </p>
         </div>
         <div className="flex gap-4">
-          <Link href="/live-posture">
+          <Link href={email ? "/live-posture" : "/login"}>
             <Button size="lg">
               Try Now
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
-          <Link href="/dashboard">
+          <Link href={email ? "/dashboard" : "/login"}>
             <Button variant="outline" size="lg">
               View Dashboard
             </Button>

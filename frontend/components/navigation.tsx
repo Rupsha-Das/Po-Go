@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { ActivitySquare } from "lucide-react"
+import Image from "next/image"
+
+import logo_image from "@/public/logo image2.png"
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -24,7 +27,9 @@ export function Navigation() {
       <div className="container flex h-16 items-center">
         <Link href="/" className="flex items-center space-x-2">
           <ActivitySquare className="h-6 w-6" />
-          <span className="font-bold">Po-Go</span>
+          <span>Po</span>
+          <Image src={logo_image} width={27} className="dark:invert mx-1" alt="" />
+          <span>Go</span>
         </Link>
         <nav className="flex flex-1 items-center justify-center space-x-6">
           {navigation.map((item) => (

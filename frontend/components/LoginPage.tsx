@@ -2,12 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { Brain, Moon, Sun } from 'lucide-react';
+import axios from 'axios';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { CiNoWaitingSign } from "react-icons/ci";
+
+import logo_image from "@/public/logo image2.png"
+import Image from 'next/image';
+
 
 export default function LoginPage() {
+    const { toast } = useToast();
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errors, setErrors] = useState({ email: '', password: '' });
     const [isDark, setIsDark] = useState(false);
+
+
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         // Check system preference on mount
@@ -49,7 +62,26 @@ export default function LoginPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (validateForm()) {
-            console.log('Form submitted:', { email, password });
+            setIsLoading(true);
+            console.log(email, password);
+            axios.post('https://po-go.onrender.com/login', { email, password })
+                .then(response => {
+                    window.localStorage.setItem('po_go_email', email);
+                    window.localStorage.setItem('po_go_name', response.data.data.name);
+
+                    console.log(response.data); // Logs the response data
+                    toast({
+                        title: 'Logged in successfully',
+                        description: 'You have been logged in successfully',
+                        duration: 5000,
+                    });
+                    router.push('/');
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+            // const response = await axios.get('', { email, password });
+            // console.log(response);
         }
     };
 
@@ -70,7 +102,11 @@ export default function LoginPage() {
             <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg transition-colors duration-200">
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
-                        <h1 className='text-2xl font-bold'>Po-Go</h1>
+                        <h1 className='text-2xl font-bold flex flex-row items-center'>
+                            <span>Po</span>
+                            <Image src={logo_image} width={22} className="dark:invert mx-1" alt="" />
+                            <span>Go</span>
+                        </h1>
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -127,30 +163,19 @@ export default function LoginPage() {
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                            <input
-                                id="remember-me"
-                                name="remember-me"
-                                type="checkbox"
-                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 rounded transition-colors"
-                            />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
-                                Remember me
-                            </label>
+
                         </div>
 
-                        <div className="text-sm">
-                            <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
-                                Forgot your password?
-                            </a>
-                        </div>
+
                     </div>
 
                     <div>
                         <button
                             type="submit"
+                            disabled={isLoading}
                             className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium bg-black dark:bg-white text-white dark:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-all duration-200"
                         >
-                            Sign in
+                            {isLoading ? <CiNoWaitingSign /> : "Sign in"}
                         </button>
                     </div>
 

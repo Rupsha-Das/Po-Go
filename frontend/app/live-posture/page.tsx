@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { AlertCircle, Camera, Clock, Pause, Play, RefreshCw } from "lucide-react"
 import { io, Socket } from "socket.io-client";
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 
 export default function LivePosture() {
@@ -16,6 +17,21 @@ export default function LivePosture() {
   const [badPostureTime, setBadPostureTime] = useState(0)
   const [isCameraConnected, setIsCameraConnected] = useState(false);
   const { toast } = useToast()
+
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (window.localStorage.getItem("po_go_email")) {
+      setEmail(window.localStorage.getItem("po_go_email"));
+      setLoading(false)
+    } else {
+      router.replace("/login");
+    }
+  }, []);
+
+
 
 
   useEffect(() => {
@@ -132,6 +148,20 @@ export default function LivePosture() {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center mt-60">
+        <div className="honeycomb">
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+        </div></div>)
   }
 
   return (
