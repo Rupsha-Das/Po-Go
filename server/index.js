@@ -129,6 +129,7 @@ io.on('connection',(socket)=>{
 app.get('/login',async (req,res)=>{
     const {email,password}=req.body;
     let result  = await User.findOne({email});
+    console.log({email,password,result})
     
     if(result && result.password === password){
         res.send({
