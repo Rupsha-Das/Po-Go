@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
+import { Button } from "@/components/ui/button"
+import { ArrowRight, Shield, Timer, Zap } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
 
 export default function Home() {
   return (
@@ -32,53 +32,69 @@ export default function Home() {
           </Link>
         </div>
       </section>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      {/* Features Section */}
+      <section className="container space-y-6 py-8 dark:bg-transparent md:py-12 lg:py-24">
+        <div className="mx-auto flex max-w-[58rem] flex-col items-center space-y-4 text-center">
+          <h2 className="font-bold text-3xl leading-[1.1] sm:text-3xl md:text-6xl">
+            Features
+          </h2>
+          <p className="max-w-[85%] leading-normal text-muted-foreground sm:text-lg sm:leading-7">
+            Po-Go combines cutting-edge AI with ergonomic expertise to help you maintain healthy posture habits.
+          </p>
+        </div>
+        <div className="mx-auto grid justify-center gap-4 sm:grid-cols-2 md:max-w-[64rem] md:grid-cols-3">
+          <div className="relative overflow-hidden rounded-lg border bg-background p-2">
+            <div className="flex h-[180px] flex-col justify-between rounded-md p-6">
+              <Shield className="h-12 w-12" />
+              <div className="space-y-2">
+                <h3 className="font-bold">AI-Powered Detection</h3>
+                <p className="text-sm text-muted-foreground">
+                  Real-time posture analysis using advanced computer vision.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-lg border bg-background p-2">
+            <div className="flex h-[180px] flex-col justify-between rounded-md p-6">
+              <Timer className="h-12 w-12" />
+              <div className="space-y-2">
+                <h3 className="font-bold">Smart Alerts</h3>
+                <p className="text-sm text-muted-foreground">
+                  Timely notifications when you need to adjust your posture.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-lg border bg-background p-2">
+            <div className="flex h-[180px] flex-col justify-between rounded-md p-6">
+              <Zap className="h-12 w-12" />
+              <div className="space-y-2">
+                <h3 className="font-bold">Insights Dashboard</h3>
+                <p className="text-sm text-muted-foreground">
+                  Track your progress and view detailed posture analytics.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Image Section */}
+      <section className="container py-8 md:py-12 lg:py-24">
+        <div className="mx-auto max-w-[82rem]">
+          <div className="relative h-[550px] overflow-hidden rounded-xl border bg-background">
+            <Image
+              src="https://emi.parkview.com/media/Image/Dashboard_952_working_desk_1_22.jpg"
+              alt="Developer working at desk"
+              fill
+              className="object-cover object-bottom"
+              priority
+
+            />
+          </div>
+        </div>
+      </section>
     </div>
-  );
+  )
 }

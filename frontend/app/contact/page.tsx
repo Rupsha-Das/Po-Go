@@ -26,7 +26,7 @@ export default function Contact() {
     })
 
     setIsSubmitting(false)
-      ; (e.target as HTMLFormElement).reset()
+    ;(e.target as HTMLFormElement).reset()
   }
 
   return (
