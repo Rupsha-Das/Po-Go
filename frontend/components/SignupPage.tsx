@@ -7,6 +7,8 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
+import { CiNoWaitingSign } from "react-icons/ci";
+
 export default function SignupPage() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -252,7 +254,8 @@ export default function SignupPage() {
                             disabled={isLoading}
                             className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium bg-black dark:bg-white text-white dark:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-all duration-200"
                         >
-                            {isLoading ? "Loading..." : "Create Account"}
+                            {isLoading ? <CiNoWaitingSign />
+                                : "Create Account"}
                         </button>
                     </div>
 
