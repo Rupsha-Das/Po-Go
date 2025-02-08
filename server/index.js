@@ -66,7 +66,7 @@ io.on('connection',(socket)=>{
         if (consumerId == null) {
             producers.set(producerId,socket.id);
             consumers.set(socket.id,producerId);
-            console.log(`Consumer:${consumerId} Connected to Producer:${producerId} `)
+            console.log(`Consumer:${socket.id} Connected to Producer:${producerId} `)
             break;
         }
     }
@@ -80,6 +80,7 @@ io.on('connection',(socket)=>{
     console.log(data)//data received from viraj side
     const consumerId = producers.get(socket.id);
     const consumerEmail = consumerEmails(consumerId);
+    console.log(`consumerId:${consumerId} and consumerEmail:${consumerEmail}`)
     let result  = await User.findOne({email:consumerEmail});
     let msg;
     if(!result){
