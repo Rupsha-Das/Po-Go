@@ -8,6 +8,9 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { ActivitySquare, Divide } from "lucide-react"
 import { useEffect, useState } from "react"
 import { CiLogout } from "react-icons/ci";
+import Image from "next/image"
+
+import logo_image from "@/public/logo image2.png"
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -39,10 +42,14 @@ export default function Navbar() {
 
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="sticky flex justify-center items-center top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container px-36 flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
-          <span className="font-bold text-3xl">Po-Go</span>
+          <span className="font-bold text-3xl flex flex-row items-center">
+            <span>Po</span>
+            <Image src={logo_image} width={27} className="dark:invert mx-1" alt="" />
+            <span>Go</span>
+          </span>
         </Link>
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
           <div className="hidden md:flex md:items-center md:space-x-6">

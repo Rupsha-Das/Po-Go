@@ -8,6 +8,9 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 import { CiNoWaitingSign } from "react-icons/ci";
+import Image from 'next/image';
+
+import logo_image from "@/public/logo image2.png"
 
 export default function SignupPage() {
     const { toast } = useToast();
@@ -149,7 +152,11 @@ export default function SignupPage() {
             <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg transition-colors duration-200">
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
-                        <h1 className='text-2xl font-bold'>Po-Go</h1>
+                        <span className="font-bold text-2xl flex flex-row items-center">
+                            <span>Po</span>
+                            <Image src={logo_image} width={22} className="dark:invert mx-1" alt="" />
+                            <span>Go</span>
+                        </span>
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Create your account</h2>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">

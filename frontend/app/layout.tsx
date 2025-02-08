@@ -29,7 +29,7 @@ export default function RootLayout({
         >
           <div className="flex min-h-screen flex-col">
             <Navbar />
-            <main className="flex-1 px-40">
+            <main className="flex-1 flex justify-center items-center px-40">
               {children}
             </main>
             <Footer />
