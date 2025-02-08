@@ -22,8 +22,21 @@ app.get("/",(req,res)=>{
 })
 
 
-const machineToUserEmail = new Map();
-const userEmailToMachine = new Map();
+const producers = new Map();
+const consumers = new Map();
+const consumerEmails = new Map();
+producers.set(4444,null)
+
+function printPC(){
+    console.log("producers\n___________");
+    for(const [key,val] of producers){
+        console.log(`${key} - ${val}`);
+    }
+    console.log("consumers\n___________");
+    for(const [key,val] of consumers){
+        console.log(`${key} - ${val}`);
+    }
+}
 
 
 const io = new Server(server, {
@@ -37,6 +50,66 @@ const io = new Server(server, {
 
 io.on('connection',(socket)=>{
   console.log(`user connected - ${socket.id}`)
+  socket.on('register',(deviceInfo)=>{
+    if(deviceInfo.type==='producer'){
+        producers.set(socket.id,null); 
+    }else{//consumer
+        consumers.set(socket.id,null);
+        consumerEmails.set(socket.id,deviceInfo.email);
+    }
+    console.log(deviceInfo.type, socket.id)
+  })
+
+  socket.on('connect-to-producer',()=>{
+    for (const [producerId, consumerId] of producers) {
+        console.log(`producesss  ${producerId} ${consumerId}`)
+        if (consumerId == null) {
+            producers.set(producerId,socket.id);
+            consumers.set(socket.id,producerId);
+            break;
+        }
+    }
+    socket.emit('connect-to-producer-result',{
+        msg:consumers.get(socket.id)?"Connected to Device":"Unable to Connect"
+    })
+  })
+
+  socket.on('send-data-to-consumer',async(data)=>{    
+    console.log(data)//data received from viraj side
+    const consumerId = producers.get(socket.id);
+    const consumerEmail = consumerEmails(consumerId);
+    let result  = await User.findOne({email:consumerEmail});
+    let msg;
+    if(!result){
+        msg="User not exists!!"
+    }else{
+        await User.updateOne({email:consumerEmail},{
+            $set:{posture:[...data,...result.posture]}
+        })
+        msg="Success";
+    }
+    socket.emit('posture-data-updates',{msg});
+    
+  })
+  
+  socket.on('disconnect',()=>{
+    for (const [producerId, consumerId] of producers) {
+        if (producerId == socket.id ) {
+            producers.set(producerId,null);break;
+        }
+        if (consumerId == socket.id ) {
+            producers.set(producerId,null);break;
+        }
+    }
+    for (const [consumerId, producerId] of consumers) {
+        if (producerId == socket.id ) {
+            consumers.set(producerId,null);break;
+        }
+        if (consumerId == socket.id ) {
+            consumers.set(producerId,null);break;
+        }
+    }
+  })
   
 })
 
@@ -97,27 +170,27 @@ app.post('/signin',async (req,res)=>{
     }
     
 })
-app.post('/update-posture',async (req,res)=>{
-    const {machineId,posture}=req.body;
-    // const email = machineToUserEmail.get(machineId);
-    const email="rick@gmail.com";
-    let result  = await User.findOne({email});
+// app.post('/update-posture',async (req,res)=>{
+//     const {machineId,posture}=req.body;
+//     // const email = machineToUserEmail.get(machineId);
+//     const email="rick@gmail.com";
+//     let result  = await User.findOne({email});
     
-    if(result){
-        await User.updateOne({email},{
-            $set:{posture:[...posture,...result.posture]}
-        })
-        res.send({
-            status:200,
-            msg:"Success!!",
-        })
-    }else {
-        res.send({
-            status:400,
-            msg:"Failed!!"
-        })
-    }
-})
+//     if(result){
+//         await User.updateOne({email},{
+//             $set:{posture:[...posture,...result.posture]}
+//         })
+//         res.send({
+//             status:200,
+//             msg:"Success!!",
+//         })
+//     }else {
+//         res.send({
+//             status:400,
+//             msg:"Failed!!"
+//         })
+//     }
+// })
 
 
 
