@@ -78,8 +78,10 @@ io.on('connection',(socket)=>{
 
   socket.on('send-data-to-consumer',async(data)=>{    
     console.log(data)//data received from viraj side
+    printPC();
     const consumerId = producers.get(socket.id);
     const consumerEmail = consumerEmails.get(consumerId);
+    printPC()
     console.log(`consumerId:${consumerId} and consumerEmail:${consumerEmail}`)
     let result  = await User.findOne({email:consumerEmail});
     let msg;
