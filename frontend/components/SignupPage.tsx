@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import { Brain, Moon, Sun } from 'lucide-react';
 
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+
 export default function SignupPage() {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
+
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -90,7 +98,35 @@ export default function SignupPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (validateForm()) {
-            console.log('Form submitted:', formData);
+            setIsLoading(true);
+            try {
+                const response = await axios.post("https://po-go.onrender.com/signin", {
+                    name: formData.fullName,
+                    email: formData.email, password: formData.password
+                });
+                console.log("Response:", response);
+                if (response.data.status === 200) {
+                    console.log(response);
+                    window.localStorage.setItem("po_go_email", response.data.data.email);
+                    window.localStorage.setItem("po_go_name", response.data.data.name);
+                    toast({
+                        title: "Account created successfully",
+                        description: `You can now login to your account.`,
+                    })
+                    router.push("/");
+                }
+                else {
+                    toast({
+                        title: "Error",
+                        description: `${response.data.msg}`,
+                        variant: "destructive",
+                    })
+                    setIsLoading(false);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                setIsLoading(false);
+            }
         }
     };
 
@@ -213,14 +249,15 @@ export default function SignupPage() {
                     <div>
                         <button
                             type="submit"
+                            disabled={isLoading}
                             className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium bg-black dark:bg-white text-white dark:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-all duration-200"
                         >
-                            Create Account
+                            {isLoading ? "Loading..." : "Create Account"}
                         </button>
                     </div>
 
                     <div className="text-center text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">Already have an account?</span>{' '}
+                        <span className="t  ext-gray-600 dark:text-gray-400">Already have an account?</span>{' '}
                         <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
                             Sign in
                         </a>
