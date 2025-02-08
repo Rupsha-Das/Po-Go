@@ -62,13 +62,15 @@ io.on('connection',(socket)=>{
 
   socket.on('connect-to-producer',()=>{
     for (const [producerId, consumerId] of producers) {
-        console.log(`producesss  ${producerId} ${consumerId}`)
+        // console.log(`producesss  ${producerId} ${consumerId}`)
         if (consumerId == null) {
             producers.set(producerId,socket.id);
             consumers.set(socket.id,producerId);
+            console.log(`Consumer:${consumerId} Connected to Producer:${producerId} `)
             break;
         }
     }
+    if(!consumers.get(socket.id))console.log("Unable to Connect")
     socket.emit('connect-to-producer-result',{
         msg:consumers.get(socket.id)?"Connected to Device":"Unable to Connect"
     })
