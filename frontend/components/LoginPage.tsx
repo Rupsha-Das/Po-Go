@@ -64,7 +64,7 @@ export default function LoginPage() {
             axios.post('https://po-go.onrender.com/login', { email, password })
                 .then(response => {
                     window.localStorage.setItem('po_go_email', email);
-                    window.localStorage.setItem('po_go_name', response.data.name);
+                    window.localStorage.setItem('po_go_name', response.data.data.name);
 
                     console.log(response.data); // Logs the response data
                     toast({
