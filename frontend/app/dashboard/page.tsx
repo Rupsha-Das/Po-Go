@@ -17,7 +17,6 @@ import {
   Cell,
 } from "recharts"
 
-import Human_silhouette from "@/components/human_silhouette"
 
 // Sample data - in a real app, this would come from your backend
 const weeklyData = [
