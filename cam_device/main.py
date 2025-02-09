@@ -11,6 +11,7 @@ import threading
 from dotenv import load_dotenv
 import websockets
 from queue import Queue
+import requests
 
 # ------------------ Global Data and Locks ------------------
 posture_data = {
@@ -32,6 +33,8 @@ posture_data_lock = threading.Lock()
 classification = None
 classification_lock = threading.Lock()
 
+temperature = 0
+
 message_queue = Queue()
 ws_lock = threading.Lock()
 device_id_lock = threading.Lock()
@@ -39,6 +42,9 @@ device_id_lock = threading.Lock()
 VIDEO_SOURCE = 0
 # VIDEO_SOURCE="E:\Frosthacks\WhatsApp Image 2025-02-09 at 00.44.05_e472f090.jpg"
 # VIDEO_SOURCE = "https://192.168.79.74:8080/video"
+
+LOOP_DELAY = 0.03
+
 brk = False  # Global flag to stop
 
 ws = None
@@ -55,6 +61,7 @@ class FakeLandmark:
 
 def get_posture_status(trust, smoothed_curvature):
     return posture_data["posture"]
+
 
 # ------------------ WebSocket Communication ------------------
 async def send_queued_messages(ws_connection):
@@ -109,7 +116,9 @@ async def receive_updates(ws_connection):
                 thresholds = data["thresholds"]
                 for key, value in thresholds.items():
                     print(f"Updating threshold {key} to {value}")
-                    update_env(key, value)  # Always update the threshold value in the .env file
+                    update_env(
+                        key, value
+                    )  # Always update the threshold value in the .env file
 
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed in receive_updates")
@@ -157,28 +166,29 @@ def run_main_ws_func(ws_server):
 smoothed_curvature = None
 alpha = 0.1
 
+
 # ISO11226 based classification for seated posture
 def classify_posture_metrics_seated(metrics):
     TRUNK_ACCEPTABLE_THRESHOLD = float(os.getenv("TRUNK_ACCEPTABLE_THRESHOLD", "0.15"))
-    TRUNK_WARNING_THRESHOLD    = float(os.getenv("TRUNK_WARNING_THRESHOLD", "0.30"))
+    TRUNK_WARNING_THRESHOLD = float(os.getenv("TRUNK_WARNING_THRESHOLD", "0.30"))
 
-    NECK_DEVIATION_ACCEPTABLE  = float(os.getenv("NECK_DEVIATION_ACCEPTABLE", "5"))
-    NECK_DEVIATION_WARNING     = float(os.getenv("NECK_DEVIATION_WARNING", "15"))
+    NECK_DEVIATION_ACCEPTABLE = float(os.getenv("NECK_DEVIATION_ACCEPTABLE", "5"))
+    NECK_DEVIATION_WARNING = float(os.getenv("NECK_DEVIATION_WARNING", "15"))
 
-    ARM_ACCEPTABLE_MIN         = float(os.getenv("ARM_ACCEPTABLE_MIN", "80"))
-    ARM_ACCEPTABLE_MAX         = float(os.getenv("ARM_ACCEPTABLE_MAX", "110"))
-    ARM_WARNING_LOWER          = float(os.getenv("ARM_WARNING_LOWER", "70"))
-    ARM_WARNING_UPPER          = float(os.getenv("ARM_WARNING_UPPER", "120"))
+    ARM_ACCEPTABLE_MIN = float(os.getenv("ARM_ACCEPTABLE_MIN", "80"))
+    ARM_ACCEPTABLE_MAX = float(os.getenv("ARM_ACCEPTABLE_MAX", "110"))
+    ARM_WARNING_LOWER = float(os.getenv("ARM_WARNING_LOWER", "70"))
+    ARM_WARNING_UPPER = float(os.getenv("ARM_WARNING_UPPER", "120"))
 
-    HIP_ACCEPTABLE_MIN         = float(os.getenv("HIP_ACCEPTABLE_MIN", "80"))
-    HIP_ACCEPTABLE_MAX         = float(os.getenv("HIP_ACCEPTABLE_MAX", "100"))
-    HIP_WARNING_LOWER          = float(os.getenv("HIP_WARNING_LOWER", "70"))
-    HIP_WARNING_UPPER          = float(os.getenv("HIP_WARNING_UPPER", "110"))
+    HIP_ACCEPTABLE_MIN = float(os.getenv("HIP_ACCEPTABLE_MIN", "80"))
+    HIP_ACCEPTABLE_MAX = float(os.getenv("HIP_ACCEPTABLE_MAX", "100"))
+    HIP_WARNING_LOWER = float(os.getenv("HIP_WARNING_LOWER", "70"))
+    HIP_WARNING_UPPER = float(os.getenv("HIP_WARNING_UPPER", "110"))
 
-    KNEE_ACCEPTABLE_MIN        = float(os.getenv("KNEE_ACCEPTABLE_MIN", "90"))
-    KNEE_ACCEPTABLE_MAX        = float(os.getenv("KNEE_ACCEPTABLE_MAX", "135"))
-    KNEE_WARNING_LOWER         = float(os.getenv("KNEE_WARNING_LOWER", "85"))
-    KNEE_WARNING_UPPER         = float(os.getenv("KNEE_WARNING_UPPER", "140"))
+    KNEE_ACCEPTABLE_MIN = float(os.getenv("KNEE_ACCEPTABLE_MIN", "90"))
+    KNEE_ACCEPTABLE_MAX = float(os.getenv("KNEE_ACCEPTABLE_MAX", "135"))
+    KNEE_WARNING_LOWER = float(os.getenv("KNEE_WARNING_LOWER", "85"))
+    KNEE_WARNING_UPPER = float(os.getenv("KNEE_WARNING_UPPER", "140"))
 
     classification = {}
 
@@ -221,7 +231,9 @@ def classify_posture_metrics_seated(metrics):
     else:
         if ARM_ACCEPTABLE_MIN <= armL_value <= ARM_ACCEPTABLE_MAX:
             classification["arm_left"] = "acceptable"
-        elif (ARM_WARNING_LOWER <= armL_value < ARM_ACCEPTABLE_MIN) or (ARM_ACCEPTABLE_MAX < armL_value <= ARM_WARNING_UPPER):
+        elif (ARM_WARNING_LOWER <= armL_value < ARM_ACCEPTABLE_MIN) or (
+            ARM_ACCEPTABLE_MAX < armL_value <= ARM_WARNING_UPPER
+        ):
             classification["arm_left"] = "warning"
         else:
             classification["arm_left"] = "not recommended"
@@ -235,7 +247,9 @@ def classify_posture_metrics_seated(metrics):
     else:
         if ARM_ACCEPTABLE_MIN <= armR_value <= ARM_ACCEPTABLE_MAX:
             classification["arm_right"] = "acceptable"
-        elif (ARM_WARNING_LOWER <= armR_value < ARM_ACCEPTABLE_MIN) or (ARM_ACCEPTABLE_MAX < armR_value <= ARM_WARNING_UPPER):
+        elif (ARM_WARNING_LOWER <= armR_value < ARM_ACCEPTABLE_MIN) or (
+            ARM_ACCEPTABLE_MAX < armR_value <= ARM_WARNING_UPPER
+        ):
             classification["arm_right"] = "warning"
         else:
             classification["arm_right"] = "not recommended"
@@ -249,7 +263,9 @@ def classify_posture_metrics_seated(metrics):
     else:
         if HIP_ACCEPTABLE_MIN <= hip_value <= HIP_ACCEPTABLE_MAX:
             classification["hip"] = "acceptable"
-        elif (HIP_WARNING_LOWER <= hip_value < HIP_ACCEPTABLE_MIN) or (HIP_ACCEPTABLE_MAX < hip_value <= HIP_WARNING_UPPER):
+        elif (HIP_WARNING_LOWER <= hip_value < HIP_ACCEPTABLE_MIN) or (
+            HIP_ACCEPTABLE_MAX < hip_value <= HIP_WARNING_UPPER
+        ):
             classification["hip"] = "warning"
         else:
             classification["hip"] = "not recommended"
@@ -267,7 +283,9 @@ def classify_posture_metrics_seated(metrics):
         avg_knee = (kneeL_value + kneeR_value) / 2
         if KNEE_ACCEPTABLE_MIN <= avg_knee <= KNEE_ACCEPTABLE_MAX:
             classification["knee"] = "acceptable"
-        elif (KNEE_WARNING_LOWER <= avg_knee < KNEE_ACCEPTABLE_MIN) or (KNEE_ACCEPTABLE_MAX < avg_knee <= KNEE_WARNING_UPPER):
+        elif (KNEE_WARNING_LOWER <= avg_knee < KNEE_ACCEPTABLE_MIN) or (
+            KNEE_ACCEPTABLE_MAX < avg_knee <= KNEE_WARNING_UPPER
+        ):
             classification["knee"] = "warning"
         else:
             classification["knee"] = "not recommended"
@@ -281,13 +299,12 @@ def classify_posture_metrics_seated(metrics):
 
     if not segments:
         overall = "unknown"
+    elif any(s == "warning" for s in segments):
+        overall = "WARNING"
+    elif sum(1 for s in segments if s == "acceptable") > (len(segments) / 2):
+        overall = "GOOD"
     else:
-        if all(s == "acceptable" for s in segments):
-            overall = "GOOD"
-        elif any(s == "not recommended" for s in segments):
-            overall = "BAD"
-        else:
-            overall = "WARNING"
+        overall = "MEH"
 
     classification["overall"] = overall
 
@@ -301,6 +318,97 @@ def posture_detection(stream=True, debug_view=True):
     pose = mp_pose.Pose(static_image_mode=False, enable_segmentation=True)
 
     # Helper functions defined once.
+
+    def compute_new_thresholds(current_data):
+        new_thresholds = {}
+
+        # Back Curvature (Trunk)
+        if current_data['backCurvature']['confidence'] >= 0.5:
+            current_curvature = current_data['backCurvature']['value']
+            new_thresholds['TRUNK_ACCEPTABLE_THRESHOLD'] = max(current_curvature + 0.05, 0.0)
+            new_thresholds['TRUNK_WARNING_THRESHOLD'] = max(current_curvature + 0.15, 0.0)
+
+        # Neck Deviation
+        if current_data['neckAngle']['confidence'] >= 0.5:
+            current_neck = current_data['neckAngle']['value']
+            deviation = abs(current_neck - 180)
+            new_thresholds['NECK_DEVIATION_ACCEPTABLE'] = deviation + 5
+            new_thresholds['NECK_DEVIATION_WARNING'] = deviation + 15
+
+        # Arm Angles (Average of Left and Right)
+        if (current_data['armAngleL']['confidence'] >= 0.5 and 
+            current_data['armAngleR']['confidence'] >= 0.5):
+            avg_arm = (current_data['armAngleL']['value'] + current_data['armAngleR']['value']) / 2
+            new_thresholds['ARM_ACCEPTABLE_MIN'] = max(avg_arm - 10, 0.0)
+            new_thresholds['ARM_ACCEPTABLE_MAX'] = avg_arm + 10
+            new_thresholds['ARM_WARNING_LOWER'] = max(avg_arm - 20, 0.0)
+            new_thresholds['ARM_WARNING_UPPER'] = avg_arm + 20
+
+        # Hip Angle
+        if current_data['hipAngle']['confidence'] and current_data['hipAngle']['confidence'] >= 0.5:
+            hip = current_data['hipAngle']['value']
+            new_thresholds['HIP_ACCEPTABLE_MIN'] = max(hip - 5, 0.0)
+            new_thresholds['HIP_ACCEPTABLE_MAX'] = hip + 5
+            new_thresholds['HIP_WARNING_LOWER'] = max(hip - 10, 0.0)
+            new_thresholds['HIP_WARNING_UPPER'] = hip + 10
+
+        # Knee Angles (Average)
+        if (current_data['kneeAngleL']['confidence'] >= 0.5 and 
+            current_data['kneeAngleR']['confidence'] >= 0.5):
+            avg_knee = (current_data['kneeAngleL']['value'] + current_data['kneeAngleR']['value']) / 2
+            new_thresholds['KNEE_ACCEPTABLE_MIN'] = max(avg_knee - 15, 0.0)
+            new_thresholds['KNEE_ACCEPTABLE_MAX'] = avg_knee + 15
+            new_thresholds['KNEE_WARNING_LOWER'] = max(avg_knee - 25, 0.0)
+            new_thresholds['KNEE_WARNING_UPPER'] = avg_knee + 25
+
+        return new_thresholds
+
+
+    def duration_Analysis():
+        global temperature
+        t_inc_rate = float(os.getenv("T_INC_RATE", "0.1")) * LOOP_DELAY
+        t_dec_rate = float(os.getenv("T_DEC_RATE", "0.05")) * LOOP_DELAY
+        threshold = float(os.getenv("THRESHOLD", "1.0")) * LOOP_DELAY
+
+        with posture_data_lock:
+            if posture_data["posture"]["overall"] == "BAD":
+                temperature += t_inc_rate
+            else:
+                temperature -= t_dec_rate
+
+            temperature = max(0, temperature)  # Ensure temperature doesn't go below 0
+
+            if temperature > threshold:
+                alert()
+
+    def alert():
+        print("ALERT: Bad posture detected for an extended period!")
+        # Play a pinging sound
+        duration = 0.5  # seconds
+        freq = 440  # Hz
+        os.system("play -nq -t alsa synth {} sine {}".format(duration, freq))
+        # Send a POST request to the API
+        api_url = os.getenv("API_URL")
+
+        if api_url: # optional
+            try:
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "deviceId": device_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "posture": posture_data["posture"],
+                    "temperature": temperature,
+                }
+                response = requests.post(api_url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    print("Successfully sent alert to API")
+                else:
+                    print(
+                        f"Failed to send alert to API: {response.status_code} {response.text}"
+                    )
+            except Exception as e:
+                print(f"Error sending alert to API: {e}")
+
     def get_midpoint(point1, point2):
         return ((point1[0] + point2[0]) // 2, (point1[1] + point2[1]) // 2)
 
@@ -310,8 +418,18 @@ def posture_detection(stream=True, debug_view=True):
 
     def draw_text_with_outline(frame, text, position, scale, color, thickness=2):
         if debug_view:
-            cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thickness + 2)
-            cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+            cv2.putText(
+                frame,
+                text,
+                position,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                scale,
+                (0, 0, 0),
+                thickness + 2,
+            )
+            cv2.putText(
+                frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness
+            )
 
     def calculate_angle(p1, p2, p3):
         # Compute the angle at p2 between vectors p2->p1 and p2->p3.
@@ -336,9 +454,11 @@ def posture_detection(stream=True, debug_view=True):
                 draw_bold_line(frame, p1, p2, color, 4)
                 draw_bold_line(frame, p2, p3, color, 4)
                 draw_text_with_outline(frame, f"{int(angle)}°", p2, 0.8, color)
-            print(f"[DEBUG] Angle between points {p1}, {p2}, {p3}: {int(angle)}° (conf: {conf:.2f})")
+            print(
+                f"[DEBUG] Angle between points {p1}, {p2}, {p3}: {int(angle)}° (conf: {conf:.2f})"
+            )
             return angle, conf
-        return None, None
+        return None, 0
 
     def ray_segment_intersection(ray_origin, ray_direction, pt1, pt2):
         segment_vec = pt2 - pt1
@@ -374,9 +494,11 @@ def posture_detection(stream=True, debug_view=True):
 
         # Compute a unit perpendicular vector to the line.
         dir_vector = hip_mid - shoulder_mid
-        perpendicular_vector = np.array([-dir_vector[1], dir_vector[0]], dtype=np.float32)
+        perpendicular_vector = np.array(
+            [-dir_vector[1], dir_vector[0]], dtype=np.float32
+        )
         norm_perp = np.linalg.norm(perpendicular_vector)
-        perpendicular_vector /= (norm_perp + 1e-6)
+        perpendicular_vector /= norm_perp + 1e-6
         if np.dot(perpendicular_vector, nose - line_a_mid) > 0:
             perpendicular_vector *= -1
 
@@ -395,8 +517,12 @@ def posture_detection(stream=True, debug_view=True):
             num_points = len(contour)
             for i in range(num_points):
                 pt1 = contour[i]
-                pt2 = contour[(i + 1) % num_points]  # Wrap-around for cyclic processing.
-                res = ray_segment_intersection(line_a_mid, perpendicular_vector, pt1, pt2)
+                pt2 = contour[
+                    (i + 1) % num_points
+                ]  # Wrap-around for cyclic processing.
+                res = ray_segment_intersection(
+                    line_a_mid, perpendicular_vector, pt1, pt2
+                )
                 if res is not None:
                     intersection_point, t_val = res
                     if t_val < best_t:
@@ -424,13 +550,33 @@ def posture_detection(stream=True, debug_view=True):
                 point_a_int = tuple(point_a.astype(int))
                 cv2.line(debug_frame, shoulder_mid_int, hip_mid_int, (0, 255, 0), 2)
                 perp_end = line_a_mid + perpendicular_vector * 100
-                cv2.line(debug_frame, line_a_mid_int, tuple(perp_end.astype(int)), (255, 0, 0), 2)
+                cv2.line(
+                    debug_frame,
+                    line_a_mid_int,
+                    tuple(perp_end.astype(int)),
+                    (255, 0, 0),
+                    2,
+                )
                 cv2.line(debug_frame, line_a_mid_int, point_a_int, (0, 165, 255), 2)
                 cv2.circle(debug_frame, point_a_int, 5, (0, 0, 255), -1)
-            cv2.putText(debug_frame, f"Curvature: {curvature:.2f}", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-            cv2.putText(debug_frame, f"Trust: {trust:.2f}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0) if trust > 0.7 else (0, 0, 255), 2)
+            cv2.putText(
+                debug_frame,
+                f"Curvature: {curvature:.2f}",
+                (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 0),
+                2,
+            )
+            cv2.putText(
+                debug_frame,
+                f"Trust: {trust:.2f}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0) if trust > 0.7 else (0, 0, 255),
+                2,
+            )
         else:
             debug_frame = frame
 
@@ -444,16 +590,22 @@ def posture_detection(stream=True, debug_view=True):
             "neckAngle": {"value": None, "confidence": None},
             "backAngle": {"value": None, "confidence": None},
             "hipAngle": {"value": None, "confidence": None},
-            "armAngle": {1: {"value": None, "confidence": None},
-                         2: {"value": None, "confidence": None}},
-            "kneeAngle": {1: {"value": None, "confidence": None},
-                          2: {"value": None, "confidence": None}},
+            "armAngle": {
+                1: {"value": None, "confidence": None},
+                2: {"value": None, "confidence": None},
+            },
+            "kneeAngle": {
+                1: {"value": None, "confidence": None},
+                2: {"value": None, "confidence": None},
+            },
         }
         if not results.pose_landmarks:
             return angles
 
         if debug_view:
-            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            mp_drawing.draw_landmarks(
+                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
+            )
         landmarks = results.pose_landmarks.landmark
 
         # Precompute all landmark pixel coordinates to avoid repeated multiplications.
@@ -465,22 +617,33 @@ def posture_detection(stream=True, debug_view=True):
         left_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
         right_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
 
-        if (nose.visibility > 0.5 and left_shoulder.visibility > 0.5 and
-            right_shoulder.visibility > 0.5 and left_hip.visibility > 0.5 and
-            right_hip.visibility > 0.5):
+        if (
+            nose.visibility > 0.5
+            and left_shoulder.visibility > 0.5
+            and right_shoulder.visibility > 0.5
+            and left_hip.visibility > 0.5
+            and right_hip.visibility > 0.5
+        ):
             shoulder_left_coord = get_coords(left_shoulder)
             shoulder_right_coord = get_coords(right_shoulder)
             hip_left_coord = get_coords(left_hip)
             hip_right_coord = get_coords(right_hip)
             shoulder_mid_coord = get_midpoint(shoulder_left_coord, shoulder_right_coord)
             hip_mid_coord = get_midpoint(hip_left_coord, hip_right_coord)
-            fake_shoulder = FakeLandmark(shoulder_mid_coord[0] / w,
-                                          shoulder_mid_coord[1] / w,
-                                          min(left_shoulder.visibility, right_shoulder.visibility))
-            fake_hip = FakeLandmark(hip_mid_coord[0] / w,
-                                     hip_mid_coord[1] / w,
-                                     min(left_hip.visibility, right_hip.visibility))
-            angle, conf = safe_draw_and_compute_angle(frame, nose, fake_shoulder, fake_hip, (0, 255, 0), get_coords)
+            fake_shoulder = FakeLandmark(
+                shoulder_mid_coord[0] / w,
+                shoulder_mid_coord[1] / h,  # Correct normalization for y.
+                min(left_shoulder.visibility, right_shoulder.visibility),
+            )
+            fake_hip = FakeLandmark(
+                hip_mid_coord[0] / w,
+                hip_mid_coord[1] / h,       # Correct normalization for y.
+                min(left_hip.visibility, right_hip.visibility),
+            )
+
+            angle, conf = safe_draw_and_compute_angle(
+                frame, nose, fake_shoulder, fake_hip, (0, 255, 0), get_coords
+            )
             angles["neckAngle"]["value"] = angle
             angles["neckAngle"]["confidence"] = conf
 
@@ -492,41 +655,62 @@ def posture_detection(stream=True, debug_view=True):
             if right_knee.visibility > 0.5:
                 knee_candidates.append(("right", get_coords(right_knee), right_knee))
             if knee_candidates:
-                chosen_knee = min(knee_candidates,
-                                  key=lambda candidate: math.hypot(candidate[1][0] - hip_mid_coord[0],
-                                                                   candidate[1][1] - hip_mid_coord[1]))[2]
-                hip_angle, hip_conf = safe_draw_and_compute_angle(frame, fake_shoulder, fake_hip, chosen_knee, (0, 255, 255), get_coords)
+                chosen_knee = min(
+                    knee_candidates,
+                    key=lambda candidate: math.hypot(
+                        candidate[1][0] - hip_mid_coord[0],
+                        candidate[1][1] - hip_mid_coord[1],
+                    ),
+                )[2]
+                hip_angle, hip_conf = safe_draw_and_compute_angle(
+                    frame,
+                    fake_shoulder,
+                    fake_hip,
+                    chosen_knee,
+                    (0, 255, 255),
+                    get_coords,
+                )
                 angles["hipAngle"]["value"] = hip_angle
                 angles["hipAngle"]["confidence"] = hip_conf
 
         # Compute Back Angle (using left-side landmarks).
         left_knee = landmarks[mp_pose.PoseLandmark.LEFT_KNEE]
-        angle, conf = safe_draw_and_compute_angle(frame, left_knee, left_hip, left_shoulder, (255, 255, 0), get_coords)
+        angle, conf = safe_draw_and_compute_angle(
+            frame, left_knee, left_hip, left_shoulder, (255, 255, 0), get_coords
+        )
         angles["backAngle"]["value"] = angle
         angles["backAngle"]["confidence"] = conf
 
         # Compute Left and Right Arm Angles.
         left_elbow = landmarks[mp_pose.PoseLandmark.LEFT_ELBOW]
         left_wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
-        angle, conf = safe_draw_and_compute_angle(frame, left_shoulder, left_elbow, left_wrist, (0, 0, 255), get_coords)
+        angle, conf = safe_draw_and_compute_angle(
+            frame, left_shoulder, left_elbow, left_wrist, (0, 0, 255), get_coords
+        )
         angles["armAngle"][1]["value"] = angle
         angles["armAngle"][1]["confidence"] = conf
 
         right_elbow = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW]
         right_wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
-        angle, conf = safe_draw_and_compute_angle(frame, right_shoulder, right_elbow, right_wrist, (255, 0, 255), get_coords)
+        angle, conf = safe_draw_and_compute_angle(
+            frame, right_shoulder, right_elbow, right_wrist, (255, 0, 255), get_coords
+        )
         angles["armAngle"][2]["value"] = angle
         angles["armAngle"][2]["confidence"] = conf
 
         # Compute Knee Angles.
         left_ankle = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE]
-        angle, conf = safe_draw_and_compute_angle(frame, left_hip, left_knee, left_ankle, (255, 165, 0), get_coords)
+        angle, conf = safe_draw_and_compute_angle(
+            frame, left_hip, left_knee, left_ankle, (255, 165, 0), get_coords
+        )
         angles["kneeAngle"][1]["value"] = angle
         angles["kneeAngle"][1]["confidence"] = conf
 
         right_knee = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE]
         right_ankle = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE]
-        angle, conf = safe_draw_and_compute_angle(frame, right_hip, right_knee, right_ankle, (255, 165, 0), get_coords)
+        angle, conf = safe_draw_and_compute_angle(
+            frame, right_hip, right_knee, right_ankle, (255, 165, 0), get_coords
+        )
         angles["kneeAngle"][2]["value"] = angle
         angles["kneeAngle"][2]["confidence"] = conf
 
@@ -555,12 +739,14 @@ def posture_detection(stream=True, debug_view=True):
             #     mp_drawing.draw_landmarks(
             #         frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
             #     )
-            
+
             # #REMOVE
             # cv2.imshow("frame", frame)
             # cv2.waitKey(0)
 
-            curvature, trust, debug_frame = calculate_curvature_and_trust(frame, results)
+            curvature, trust, debug_frame = calculate_curvature_and_trust(
+                frame, results
+            )
             # #REMOVE
             # cv2.imshow("frame", debug_frame)
             # cv2.waitKey(0)
@@ -571,50 +757,115 @@ def posture_detection(stream=True, debug_view=True):
             # cv2.imshow("frame", debug_frame)
             # cv2.waitKey(0)
 
-
             # Exponential smoothing of curvature.
             if smoothed_curvature is None:
                 smoothed_curvature = curvature
             elif curvature > 0:
-                smoothed_curvature = alpha * curvature + (1 - alpha) * smoothed_curvature
+                smoothed_curvature = (
+                    alpha * curvature + (1 - alpha) * smoothed_curvature
+                )
 
             if debug_view:
-                cv2.putText(debug_frame, f"Smoothed Curvature: {smoothed_curvature:.2f}",
-                            (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 0), 2)
+                cv2.putText(
+                    debug_frame,
+                    f"Smoothed Curvature: {smoothed_curvature:.2f}",
+                    (10, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (200, 200, 0),
+                    2,
+                )
                 if trust > 0.7 and smoothed_curvature > 0.45:
-                    cv2.putText(debug_frame, "BAD POSTURE!", (50, 80),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    cv2.putText(
+                        debug_frame,
+                        "BAD POSTURE!",
+                        (50, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        2,
+                    )
 
             print(f"[DEBUG] Smoothed Curvature: {smoothed_curvature:.2f}")
             if trust > 0.7 and smoothed_curvature > 0.45:
                 print("[DEBUG] BAD POSTURE!")
 
             with posture_data_lock:
-                posture_data.update({
-                    "trust": trust,
-                    "timestamp": datetime.now().isoformat(),
-                    "neckAngle": {"value": angle_data["neckAngle"]["value"] or 0,
-                                  "confidence": angle_data["neckAngle"]["confidence"] or 0},
-                    "backCurvature": {"value": smoothed_curvature, "confidence": trust},
-                    "armAngleL": {"value": angle_data["armAngle"][1]["value"] if angle_data["armAngle"][1]["value"] is not None else 0,
-                                  "confidence": angle_data["armAngle"][1]["confidence"] if angle_data["armAngle"][1]["confidence"] is not None else 0},
-                    "armAngleR": {"value": angle_data["armAngle"][2]["value"] if angle_data["armAngle"][2]["value"] is not None else 0,
-                                  "confidence": angle_data["armAngle"][2]["confidence"] if angle_data["armAngle"][2]["confidence"] is not None else 0},
-                    "hipAngle": {"value": angle_data["hipAngle"]["value"],
-                                 "confidence": angle_data["hipAngle"]["confidence"]},
-                    "kneeAngleL": {"value": angle_data["kneeAngle"][1]["value"] if angle_data["kneeAngle"][1]["value"] is not None else 0,
-                                   "confidence": angle_data["kneeAngle"][1]["confidence"] if angle_data["kneeAngle"][1]["confidence"] is not None else 0},
-                    "kneeAngleR": {"value": angle_data["kneeAngle"][2]["value"] if angle_data["kneeAngle"][2]["value"] is not None else 0,
-                                   "confidence": angle_data["kneeAngle"][2]["confidence"] if angle_data["kneeAngle"][2]["confidence"] is not None else 0},
-                    "posture": get_posture_status(trust, smoothed_curvature),
-                })
+                posture_data.update(
+                    {
+                        "trust": trust,
+                        "timestamp": datetime.now().isoformat(),
+                        "neckAngle": {
+                            "value": angle_data["neckAngle"]["value"] or 0,
+                            "confidence": angle_data["neckAngle"]["confidence"] or 0,
+                        },
+                        "backCurvature": {
+                            "value": smoothed_curvature,
+                            "confidence": trust,
+                        },
+                        "armAngleL": {
+                            "value": (
+                                angle_data["armAngle"][1]["value"]
+                                if angle_data["armAngle"][1]["value"] is not None
+                                else 0
+                            ),
+                            "confidence": (
+                                angle_data["armAngle"][1]["confidence"]
+                                if angle_data["armAngle"][1]["confidence"] is not None
+                                else 0
+                            ),
+                        },
+                        "armAngleR": {
+                            "value": (
+                                angle_data["armAngle"][2]["value"]
+                                if angle_data["armAngle"][2]["value"] is not None
+                                else 0
+                            ),
+                            "confidence": (
+                                angle_data["armAngle"][2]["confidence"]
+                                if angle_data["armAngle"][2]["confidence"] is not None
+                                else 0
+                            ),
+                        },
+                        "hipAngle": {
+                            "value": angle_data["hipAngle"]["value"],
+                            "confidence": angle_data["hipAngle"]["confidence"],
+                        },
+                        "kneeAngleL": {
+                            "value": (
+                                angle_data["kneeAngle"][1]["value"]
+                                if angle_data["kneeAngle"][1]["value"] is not None
+                                else 0
+                            ),
+                            "confidence": (
+                                angle_data["kneeAngle"][1]["confidence"]
+                                if angle_data["kneeAngle"][1]["confidence"] is not None
+                                else 0
+                            ),
+                        },
+                        "kneeAngleR": {
+                            "value": (
+                                angle_data["kneeAngle"][2]["value"]
+                                if angle_data["kneeAngle"][2]["value"] is not None
+                                else 0
+                            ),
+                            "confidence": (
+                                angle_data["kneeAngle"][2]["confidence"]
+                                if angle_data["kneeAngle"][2]["confidence"] is not None
+                                else 0
+                            ),
+                        },
+                        "posture": get_posture_status(trust, smoothed_curvature),
+                    }
+                )
 
             with device_id_lock, posture_data_lock:
-                message = json.dumps({
-                    "deviceId": device_id,
-                    "action": "update",
-                    **posture_data
-                }, default=lambda x: float(x) if isinstance(x, (np.float32, np.float64)) else x)
+                message = json.dumps(
+                    {"deviceId": device_id, "action": "update", **posture_data},
+                    default=lambda x: (
+                        float(x) if isinstance(x, (np.float32, np.float64)) else x
+                    ),
+                )
                 message_queue.put(message)
 
             with posture_data_lock, classification_lock:
@@ -636,15 +887,40 @@ def posture_detection(stream=True, debug_view=True):
             print("------------------------------------------------------")
 
             if debug_view:
-                frame_display = cv2.resize(debug_frame, None, fx=display_scale, fy=display_scale)
-                cv2.putText(frame_display, f"Posture: {posture_data['posture']['overall']}",
-                            (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                frame_display = cv2.resize(
+                    debug_frame, None, fx=display_scale, fy=display_scale
+                )
+                cv2.putText(
+                    frame_display,
+                    f"Posture: {posture_data['posture']['overall']}",
+                    (10, 120),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 0, 255),
+                    2,
+                )
+                # Check for 'c' key press to calibrate
+                key = cv2.waitKey(10) & 0xFF
+                if key == ord('c'):
+                    # Capture current posture data
+                    with posture_data_lock:
+                        current_data = posture_data.copy()
+                    # Compute new thresholds
+                    new_thresholds = compute_new_thresholds(current_data)
+                    # Update environment variables
+                    for key, value in new_thresholds.items():
+                        update_env(key, str(value))
+                    print("Calibration completed. New thresholds:", new_thresholds)
+                    # Display calibration message
+                    cv2.putText(frame_display, "Calibration Complete!", (50, 160), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.imshow("Pose Detection", frame_display)
-                if cv2.waitKey(10) & 0xFF == ord("q"):
+                if key == ord('q'):
                     brk = True
                     break
-
-            time.sleep(0.3)
+                
+            duration_Analysis()
+            time.sleep(LOOP_DELAY)
 
         cap.release()
         if debug_view:

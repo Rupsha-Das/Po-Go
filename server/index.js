@@ -58,7 +58,7 @@ wss.on('connection', (ws) => {
             // dev_id_temp++ if posture.overall == bad else dev_id_temp--
             // if dev_id_temp > threashold:
             //   send email to user
-            // push updated dev_id_temp to mongo
+            // push
 
 
             producers.set(clientId, null);
