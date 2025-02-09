@@ -64,7 +64,11 @@ export default function LoginPage() {
         if (validateForm()) {
             setIsLoading(true);
             console.log(email, password);
-            axios.get('https://po-go.onrender.com/login', { "email": email, "password": password })
+            axios.get('https://po-go.onrender.com/login',
+                // {
+                //     "email": email, "password": password
+                // }
+            )
                 .then(response => {
                     console.log(response.data); // Logs the response data
                     window.localStorage.setItem('po_go_email', email);
