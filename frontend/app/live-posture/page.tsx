@@ -12,7 +12,12 @@ import { useRouter } from "next/navigation"
 import { FaChartLine } from "react-icons/fa6";
 
 // import Human_silhouette from "@/components/human_silhouette"
-// import posture_img_1  from
+import posture_img_1 from "@/public/guide-to-a-good-posture-1.png"
+import posture_img_2 from "@/public/guide-to-a-good-posture-2.png"
+import posture_img_3 from "@/public/guide-to-a-good-posture-3.png"
+import logo_image from "@/public/logo image.png"
+
+import analyzePosture from "@/components/posture";
 
 import {
   LineChart,
@@ -36,6 +41,8 @@ const weeklyData = [
   { day: "Sun", goodPosture: 78, badPosture: 22 },
 ]
 
+
+
 export default function LivePosture() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isRecording, setIsRecording] = useState(false)
@@ -48,6 +55,56 @@ export default function LivePosture() {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const [postureData, setPostureData] = useState({
+    "deviceId": "e7fad02a-55d5-40fc-8030-bbb82045a501",
+    "action": "update",
+    "trust": 0.5586716051664218,
+    "timestamp": "2025-02-08T20:54:45.236492",
+    "neckAngle": {
+      "value": 0,
+      "confidence": 0
+    },
+    "backCurvature": {
+      "value": 0,
+      "confidence": 0.5586716051664218
+    },
+    "armAngleL": {
+      "value": 173.17283195051948,
+      "confidence": 0.6928661465644836
+    },
+    "armAngleR": {
+      "value": 90.49158771025344,
+      "confidence": 0.8526173830032349
+    },
+    "hipAngle": {
+      "value": null,
+      "confidence": null
+    },
+    "kneeAngleL": {
+      "value": 0,
+      "confidence": 0
+    },
+    "kneeAngleR": {
+      "value": 0,
+      "confidence": 0
+    },
+    "posture": {
+      "trunk": "acceptable",
+      "neck": "unknown",
+      "arm_left": "not recommended",
+      "arm_right": "not recommended",
+      "hip": "unknown",
+      "knee": "unknown",
+      "overall": "BAD"
+    }
+  })
+
+  const [posture_status_message, setPosture_status_message] = useState<{ message: string, subMessages: string[] }>(analyzePosture(postureData));
+
+  useEffect(() => {
+    analyzePosture(postureData);
+  }, [])
+
   useEffect(() => {
     if (window.localStorage.getItem("po_go_email")) {
       setEmail(window.localStorage.getItem("po_go_email"));
@@ -57,6 +114,7 @@ export default function LivePosture() {
     }
   }, []);
 
+  const [posture_status, setPosture_status] = useState<string>("Good Posture");
 
 
 
@@ -66,7 +124,8 @@ export default function LivePosture() {
       interval = setInterval(() => {
         setSittingTime((prev) => prev + 1)
         // Simulated bad posture detection (random for demo)
-        if (Math.random() > 0.7) {
+        // if (Math.random() > 0.7) {
+        if (posture_status_message.message == "Bad posture") {
           setBadPostureTime((prev) => {
             const newTime = prev + 1
             if (newTime >= 20) {
@@ -79,6 +138,7 @@ export default function LivePosture() {
             return newTime
           })
         }
+        // }
       }, 1000)
     }
     return () => clearInterval(interval)
@@ -161,7 +221,7 @@ export default function LivePosture() {
 
   const toggleRecording = () => {
     if (!isRecording) {
-      startCamera()
+      // startCamera()
     }
     setIsRecording(!isRecording)
   }
@@ -322,10 +382,18 @@ export default function LivePosture() {
               </p>
             </div>
           </Card>
-          <Card className="p-6">
+          <Card className="p-6 flex flex-col justify-center items-center">
             {/* <Human_silhouette /> */}
             {/* {true ? <Image src={""} width={ } alt="" /> : <Image src={""} width={ } alt="" />} */}
-            {/* <Image src={""} width={ } alt="" /> */}
+            {/* <Image src={posture_img_1} height={250} alt="Posture-image" />
+             */}
+            {isRecording ? <><h2 className={`text-left self-start text-2xl font-bold ${posture_status_message.message == "Posture is good" ? "text-green-500" : "text-red-500"}`}>{posture_status_message.message}</h2>
+
+              <div className="flex justify-between items-center">{posture_status == "Posture is good " ? <Image src={posture_img_1} height={250} alt="Posture-image" /> :
+                <Image src={posture_img_2} height={250} alt="Posture-image" />
+              }
+                <p className="px-6">{posture_status_message.subMessages}</p>
+              </div></> : <Image src={logo_image} alt="human sitting on desk-image" />}
           </Card>
         </div>
       </div>
