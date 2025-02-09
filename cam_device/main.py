@@ -37,6 +37,7 @@ ws_lock = threading.Lock()
 device_id_lock = threading.Lock()
 
 VIDEO_SOURCE = 0
+# VIDEO_SOURCE="E:\Frosthacks\WhatsApp Image 2025-02-09 at 00.44.05_e472f090.jpg"
 # VIDEO_SOURCE = "https://192.168.79.74:8080/video"
 brk = False  # Global flag to stop
 
@@ -549,8 +550,27 @@ def posture_detection(stream=True, debug_view=True):
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose.process(frame_rgb)
 
+            # #REMOVE
+            # if results.pose_landmarks:
+            #     mp_drawing.draw_landmarks(
+            #         frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
+            #     )
+            
+            # #REMOVE
+            # cv2.imshow("frame", frame)
+            # cv2.waitKey(0)
+
             curvature, trust, debug_frame = calculate_curvature_and_trust(frame, results)
+            # #REMOVE
+            # cv2.imshow("frame", debug_frame)
+            # cv2.waitKey(0)
+
             angle_data = process_posture_angles(debug_frame, results)
+
+            # #REMOVE
+            # cv2.imshow("frame", debug_frame)
+            # cv2.waitKey(0)
+
 
             # Exponential smoothing of curvature.
             if smoothed_curvature is None:
