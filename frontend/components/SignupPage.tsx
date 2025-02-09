@@ -137,17 +137,7 @@ export default function SignupPage() {
 
     return (
         <div className=" bg-gradient-to-br flex items-center justify-center p-4 transition-colors duration-200">
-            <button
-                onClick={toggleTheme}
-                className="fixed top-4 right-4 p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200"
-                aria-label="Toggle theme"
-            >
-                {isDark ? (
-                    <Sun className="h-6 w-6 text-yellow-500" />
-                ) : (
-                    <Moon className="h-6 w-6 text-indigo-600" />
-                )}
-            </button>
+            
 
             <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg transition-colors duration-200">
                 <div className="text-center">

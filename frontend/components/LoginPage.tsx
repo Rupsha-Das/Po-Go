@@ -64,12 +64,12 @@ export default function LoginPage() {
         if (validateForm()) {
             setIsLoading(true);
             console.log(email, password);
-            axios.post('https://po-go.onrender.com/login', { email, password })
+            axios.get('https://po-go.onrender.com/login', { "email": email, "password": password })
                 .then(response => {
+                    console.log(response.data); // Logs the response data
                     window.localStorage.setItem('po_go_email', email);
                     window.localStorage.setItem('po_go_name', response.data.data.name);
 
-                    console.log(response.data); // Logs the response data
                     toast({
                         title: 'Logged in successfully',
                         description: 'You have been logged in successfully',
@@ -78,7 +78,13 @@ export default function LoginPage() {
                     router.push('/');
                 })
                 .catch(error => {
-                    console.error('Error fetching data:', error);
+                    console.log(error.message)
+                    toast({
+                        title: 'Error',
+                        description: `${error.message}`,
+                        variant: 'destructive'
+                    });
+                    setIsLoading(false);
                 });
             // const response = await axios.get('', { email, password });
             // console.log(response);
@@ -87,17 +93,6 @@ export default function LoginPage() {
 
     return (
         <div className=" bg-gradient-to-br flex items-center justify-center p-4 transition-colors duration-200">
-            <button
-                onClick={toggleTheme}
-                className="fixed top-4 right-4 p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200"
-                aria-label="Toggle theme"
-            >
-                {isDark ? (
-                    <Sun className="h-6 w-6 text-yellow-500" />
-                ) : (
-                    <Moon className="h-6 w-6 text-indigo-600" />
-                )}
-            </button>
 
             <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg transition-colors duration-200">
                 <div className="text-center">

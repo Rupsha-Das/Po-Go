@@ -17,6 +17,8 @@ import {
   Cell,
 } from "recharts"
 
+import Human_silhouette from "@/components/human_silhouette"
+
 // Sample data - in a real app, this would come from your backend
 const weeklyData = [
   { day: "Mon", goodPosture: 75, badPosture: 25 },
@@ -121,6 +123,7 @@ export default function Dashboard() {
             <p className="mt-2 text-3xl font-bold">+12%</p>
             <p className="text-sm text-muted-foreground">Improvement</p>
           </Card>
+         
         </div>
 
         {/* Charts */}

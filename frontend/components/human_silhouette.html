@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Human Silhouette from JSON Input</title>
+  <style>
+    /* Center the canvas in the page */
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myCanvas" width="600" height="600"></canvas>
+  
+  <script>
+    class HumanSilhouette {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+        // Body segment dimensions (in pixels)
+        this.torsoLength    = 100;
+        this.neckLength     = 20;
+        this.headRadius     = 20;
+        this.upperArmLength = 50;
+        this.lowerArmLength = 50;
+        this.upperLegLength = 60;
+        this.lowerLegLength = 60;
+        this.shoulderWidth  = 40;
+        this.hipWidth       = 30;
+      }
+      
+      // Convert degrees to radians.
+      degToRad(deg) {
+        return deg * Math.PI / 180;
+      }
+      
+      // Draw the figure using an object of joint angles.
+      // Expected properties:
+      //   neckAngle, leftShoulder, leftElbow, rightShoulder, rightElbow,
+      //   leftHip, leftKnee, rightHip, rightKnee
+      //
+      // (Angles are in degrees. In our canvas coordinate system:
+      //   0° is “down,” and positive angles rotate clockwise.)
+      draw(jointAngles) {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Set drawing style to simulate a silhouette.
+        ctx.strokeStyle = "black";
+        ctx.fillStyle   = "black";
+        ctx.lineWidth   = 10;
+        ctx.lineCap     = "round";
+        ctx.lineJoin    = "round";
+        
+        // --- Set up base positions ---
+        const centerX = this.canvas.width / 2;
+        const hipsY   = 300;  // Fixed vertical position for the hips.
+        const hipsCenter = { x: centerX, y: hipsY };
+
+        // Compute left/right hip positions.
+        const leftHip  = { x: centerX - this.hipWidth / 2, y: hipsY };
+        const rightHip = { x: centerX + this.hipWidth / 2, y: hipsY };
+
+        // Torso: from hips to shoulders.
+        const shouldersY     = hipsY - this.torsoLength;
+        const shouldersCenter = { x: centerX, y: shouldersY };
+
+        // Shoulders spread horizontally.
+        const leftShoulder  = { x: shouldersCenter.x - this.shoulderWidth / 2, y: shouldersCenter.y };
+        const rightShoulder = { x: shouldersCenter.x + this.shoulderWidth / 2, y: shouldersCenter.y };
+
+        // --- Neck & Head ---
+        // Use the provided neck angle if available; otherwise default to vertical upward (180°).
+        const neckAngle = (jointAngles.neckAngle !== undefined) ? jointAngles.neckAngle : 180;
+        
+        // Helper function: given an origin, a segment length, and an angle (in degrees),
+        // compute the endpoint. (0° = down; positive angles rotate clockwise.)
+        const computeEndpoint = (origin, length, angleDeg) => {
+          const angleRad = this.degToRad(angleDeg);
+          return {
+            x: origin.x + length * Math.sin(angleRad),
+            y: origin.y + length * Math.cos(angleRad)
+          };
+        };
+        
+        // Compute the neck end using the neck angle.
+        const neckEnd = computeEndpoint(shouldersCenter, this.neckLength, neckAngle);
+        // Assume the head is drawn above the neck end.
+        const headCenter = { x: neckEnd.x, y: neckEnd.y - this.headRadius };
+
+        // --- Compute Arm Positions ---
+        // For the arms we use the provided shoulder angle values and add a default elbow bend.
+        // Left arm:
+        const leftShoulderAngle = (jointAngles.leftShoulder !== undefined) ? jointAngles.leftShoulder : 180;
+        const leftElbowRelative = (jointAngles.leftElbow !== undefined) ? jointAngles.leftElbow : 0;
+        const leftElbow  = computeEndpoint(leftShoulder, this.upperArmLength, leftShoulderAngle);
+        const leftWrist  = computeEndpoint(leftElbow, this.lowerArmLength, leftShoulderAngle + leftElbowRelative);
+
+        // Right arm:
+        const rightShoulderAngle = (jointAngles.rightShoulder !== undefined) ? jointAngles.rightShoulder : 180;
+        const rightElbowRelative = (jointAngles.rightElbow !== undefined) ? jointAngles.rightElbow : 0;
+        const rightElbow = computeEndpoint(rightShoulder, this.upperArmLength, rightShoulderAngle);
+        const rightWrist = computeEndpoint(rightElbow, this.lowerArmLength, rightShoulderAngle + rightElbowRelative);
+
+        // --- Compute Leg Positions ---
+        // Use the provided hip and knee angles.
+        // Left leg:
+        const leftHipAngle = (jointAngles.leftHip !== undefined) ? jointAngles.leftHip : 0;
+        const leftKneeRelative = (jointAngles.leftKnee !== undefined) ? jointAngles.leftKnee : 0;
+        const leftKnee = computeEndpoint(leftHip, this.upperLegLength, leftHipAngle);
+        const leftFoot = computeEndpoint(leftKnee, this.lowerLegLength, leftHipAngle + leftKneeRelative);
+
+        // Right leg:
+        const rightHipAngle = (jointAngles.rightHip !== undefined) ? jointAngles.rightHip : 0;
+        const rightKneeRelative = (jointAngles.rightKnee !== undefined) ? jointAngles.rightKnee : 0;
+        const rightKnee = computeEndpoint(rightHip, this.upperLegLength, rightHipAngle);
+        const rightFoot = computeEndpoint(rightKnee, this.lowerLegLength, rightHipAngle + rightKneeRelative);
+
+        // --- Draw the Figure ---
+        // Draw torso.
+        ctx.beginPath();
+        ctx.moveTo(shouldersCenter.x, shouldersCenter.y);
+        ctx.lineTo(hipsCenter.x, hipsCenter.y);
+        ctx.stroke();
+
+        // Draw left arm: shoulder → elbow → wrist.
+        ctx.beginPath();
+        ctx.moveTo(leftShoulder.x, leftShoulder.y);
+        ctx.lineTo(leftElbow.x, leftElbow.y);
+        ctx.lineTo(leftWrist.x, leftWrist.y);
+        ctx.stroke();
+
+        // Draw right arm: shoulder → elbow → wrist.
+        ctx.beginPath();
+        ctx.moveTo(rightShoulder.x, rightShoulder.y);
+        ctx.lineTo(rightElbow.x, rightElbow.y);
+        ctx.lineTo(rightWrist.x, rightWrist.y);
+        ctx.stroke();
+
+        // Draw left leg: hip → knee → foot.
+        ctx.beginPath();
+        ctx.moveTo(leftHip.x, leftHip.y);
+        ctx.lineTo(leftKnee.x, leftKnee.y);
+        ctx.lineTo(leftFoot.x, leftFoot.y);
+        ctx.stroke();
+
+        // Draw right leg: hip → knee → foot.
+        ctx.beginPath();
+        ctx.moveTo(rightHip.x, rightHip.y);
+        ctx.lineTo(rightKnee.x, rightKnee.y);
+        ctx.lineTo(rightFoot.x, rightFoot.y);
+        ctx.stroke();
+
+        // Draw neck.
+        ctx.beginPath();
+        ctx.moveTo(shouldersCenter.x, shouldersCenter.y);
+        ctx.lineTo(neckEnd.x, neckEnd.y);
+        ctx.stroke();
+
+        // Draw head as a filled circle.
+        ctx.beginPath();
+        ctx.arc(headCenter.x, headCenter.y, this.headRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // --- Create the Canvas and Instance ---
+    const canvas = document.getElementById("myCanvas");
+    const human = new HumanSilhouette(canvas);
+    
+    // --- Sample JSON Input ---
+    const jsonData = {
+      "deviceId": "e7fad02a-55d5-40fc-8030-bbb82045a501",       
+      "action": "update",
+      "trust": 1,
+      "timestamp": "2025-02-09T01:09:47.809067",
+      "neckAngle": {
+        "value": 108.61016619748808,
+        "confidence": 0.9970807433128357
+      },
+      "backCurvature": {
+        "value": 0,
+        "confidence": 1
+      },
+      "armAngleL": {
+        "value": 144.35298193715664,
+        "confidence": 0.9836249351501465
+      },
+      "armAngleR": {
+        "value": 0,
+        "confidence": 0
+      },
+      "hipAngle": {
+        "value": 133.6059090621701,
+        "confidence": 0.9146743416786194
+      },
+      "kneeAngleL": {
+        "value": 78.70382313185615,
+        "confidence": 0.9130271077156067
+      },
+      "kneeAngleR": {
+        "value": 0,
+        "confidence": 0
+      },
+      "posture": "GOOD"
+    };
+    
+    // --- Map JSON Values to Joint Angles for the Drawing ---
+    // (For arms and legs, we use default elbow values since the JSON doesn’t provide them.)
+    const jointAnglesForDrawing = {
+      neckAngle:      jsonData.neckAngle.value,        // Neck angle from JSON.
+      leftShoulder:   jsonData.armAngleL.value,          // Left shoulder angle.
+      leftElbow:      10,                              // Default elbow bend for left arm.
+      rightShoulder:  jsonData.armAngleR.value,          // Right shoulder angle.
+      rightElbow:     0,                               // Default elbow bend for right arm.
+      leftHip:        jsonData.hipAngle.value,           // Hip angle (used for both legs).
+      leftKnee:       jsonData.kneeAngleL.value,         // Left knee bend.
+      rightHip:       jsonData.hipAngle.value,           // Right hip (same as left).
+      rightKnee:      jsonData.kneeAngleR.value          // Right knee bend.
+    };
+    
+    // --- Draw the Silhouette using the JSON Input ---
+    human.draw(jointAnglesForDrawing);
+  </script>
+</body>
+</html>

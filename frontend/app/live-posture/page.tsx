@@ -9,6 +9,32 @@ import { io, Socket } from "socket.io-client";
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
+import { FaChartLine } from "react-icons/fa6";
+
+// import Human_silhouette from "@/components/human_silhouette"
+// import posture_img_1  from
+
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Image from "next/image"
+
+const weeklyData = [
+  { day: "Mon", goodPosture: 75, badPosture: 25 },
+  { day: "Tue", goodPosture: 65, badPosture: 35 },
+  { day: "Wed", goodPosture: 80, badPosture: 20 },
+  { day: "Thu", goodPosture: 70, badPosture: 30 },
+  { day: "Fri", goodPosture: 85, badPosture: 15 },
+  { day: "Sat", goodPosture: 90, badPosture: 10 },
+  { day: "Sun", goodPosture: 78, badPosture: 22 },
+]
 
 export default function LivePosture() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -58,6 +84,13 @@ export default function LivePosture() {
     return () => clearInterval(interval)
   }, [isRecording, toast])
 
+  useEffect(() => {
+    if (badPostureTime >= 20) {
+      const audio = new Audio("../../public/alert sound.mp3")
+      audio.play();
+    }
+  }, [badPostureTime]);
+
   interface socketType {
     msg: string;
   }
@@ -74,7 +107,7 @@ export default function LivePosture() {
     };
 
     newSocket.on("connect", () => {
-      newSocket.emit('register', { type: "consumer", email: "rick@gmail.com" });
+      newSocket.emit('register', { type: "consumer", email: email });
       newSocket.on('connect-to-producer-result', (data: ConnectToProducerResult) => {
         console.log(data.msg)
         //use this data to show msg to the user
@@ -150,6 +183,42 @@ export default function LivePosture() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const CustomLineChart = ({ data, xKey }: { data: any[], xKey: string }) => {
+    console.log("This is chart");
+    return (
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey={xKey}
+            tick={{ fontSize: 12 }}
+            padding={{ left: 10, right: 10 }}
+          />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            domain={[0, 100]}
+          />
+          <Tooltip />
+          <Line
+            type="monotone"
+            dataKey="goodPosture"
+            stroke="hsl(var(--chart-1))"
+            name="Good Posture %"
+            isAnimationActive={false}
+            strokeWidth={2}
+          />
+          <Line
+            type="monotone"
+            dataKey="badPosture"
+            stroke="hsl(var(--chart-2))"
+            name="Bad Posture %"
+            isAnimationActive={false}
+            strokeWidth={2}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    )
+  }
   if (loading) {
     return (
       <div className="flex justify-center items-center mt-60">
@@ -173,17 +242,25 @@ export default function LivePosture() {
       <div className="grid gap-6 md:grid-cols-2">
         {/* Camera Feed */}
         <Card className="p-4">
-          <div className="relative aspect-video rounded-lg bg-muted">
-            <video
+          <div className="relative aspect-video rounded-lg ">
+            {/* <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
               className="h-full w-full rounded-lg object-cover"
-            />
+            /> */}
+            <Tabs defaultValue="weekly">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Posture History</h2>
+              </div>
+              <TabsContent value="weekly" className="mt-4">
+                <CustomLineChart data={weeklyData} xKey="day" />
+              </TabsContent>
+            </Tabs>
             {!isRecording && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-                <Camera className="h-12 w-12 text-muted-foreground" />
+              <div className="absolute inset-0 flex items-center justify-center bg-background">
+                <FaChartLine className="h-12 w-12 text-muted-foreground" />
               </div>
             )}
           </div>
@@ -244,6 +321,11 @@ export default function LivePosture() {
                 Alert at 20 seconds of bad posture
               </p>
             </div>
+          </Card>
+          <Card className="p-6">
+            {/* <Human_silhouette /> */}
+            {/* {true ? <Image src={""} width={ } alt="" /> : <Image src={""} width={ } alt="" />} */}
+            {/* <Image src={""} width={ } alt="" /> */}
           </Card>
         </div>
       </div>

@@ -79,7 +79,7 @@ export default function Navbar() {
               onClick={handleLogout}
             />
           </> :
-            email ? <><div className="text-md">Hello, {email}</div> <CiLogout className="text-2xl cursor-pointer" title="logout" onClick={handleLogout}
+            email ? <><div className="text-md">Hello, {email.split('@')[0]}</div> <CiLogout className="text-2xl cursor-pointer" title="logout" onClick={handleLogout}
             />
             </> :
               <><Link href={"/login"}>
