@@ -1,5 +1,7 @@
 # Po-GO (Posture-good)
 
+*partially complete*
+
 Po-Go (Posture-good) is a machine learning-powered posture correction system designed for real-time ergonomic health monitoring with on-device ML processing, and Wi-Fi/Bluetooth connectivity. It operates without cloud dependency, ensuring faster, secure, and privacy-focused posture analysis.
 
 Key features:  

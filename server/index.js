@@ -1,4 +1,4 @@
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -7,7 +7,6 @@ const app = express();
 const User = require("./user.model.js");
 const mongoose = require("mongoose");
 
-// const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -16,11 +15,31 @@ const producers = new Map();
 const consumers = new Map();
 const consumerEmails = new Map();
 
+// New maps for client and device sockets
+const clients = new Map();
+const devices = new Map();
+
+function sendToClient(email, payload) {
+  const clientWs = clients.get(email);
+  if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+    clientWs.send(JSON.stringify(payload));
+  }
+}
+
+function sendToDevice(email, payload) {
+  const deviceWs = devices.get(email);
+  if (deviceWs && deviceWs.readyState === WebSocket.OPEN) {
+    deviceWs.send(JSON.stringify(payload));
+  }
+}
+
 app.use(express.json());
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
 app.get("/", (req, res) => {
   res.send("Server running fine!!!!!!");
@@ -41,64 +60,95 @@ function printPC() {
   }
 }
 
-wss.on('connection', (ws) => {
+wss.on("connection", (ws) => {
   const clientId = Math.random().toString(36).substring(7);
   console.log(`Client connected: ${clientId}`);
 
-  ws.on('message', async (message) => {
+  // Send a connection response on new connection
+  ws.send(
+    JSON.stringify({
+      action: "connection_response",
+      status: "connected",
+      message: "Connected to Device",
+    })
+  );
+
+  ws.on("message", async (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('Received:\n' + JSON.stringify(data, null, 2));
 
+      // Check for registration as a client or device
+      if (data.type === "client") {
+        clients.set(data.email, ws);
+        console.log(`Registered client: ${data.email}`);
+        return;
+      }
+      if (data.type === "device") {
+        devices.set(data.email, ws);
+        console.log(`Registered device: ${data.email}`);
+        return;
+      }
+
+      console.log("Received:\n" + JSON.stringify(data, null, 2));
       switch (data.action) {
-        case 'register':
-          if (data.type === 'producer') {
-
-            // dev_id_temp <- (from mongo)
-            // dev_id_temp++ if posture.overall == bad else dev_id_temp--
-            // if dev_id_temp > threashold:
-            //   send email to user
-            // push
-
-
+        case "update": {
+          // Forward the update message to all clients
+          for (const [email, clientWs] of clients.entries()) {
+            if (clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(JSON.stringify(data));
+            }
+          }
+          break;
+        }
+        case "register":
+          if (data.type === "producer") {
             producers.set(clientId, null);
           } else {
             consumers.set(clientId, null);
             consumerEmails.set(clientId, data.email);
           }
-          ws.send(JSON.stringify({
-            action: 'register_response',
-            status: 'success',
-            clientId: clientId
-          }));
+          ws.send(
+            JSON.stringify({
+              action: "register_response",
+              status: "success",
+              clientId: clientId,
+            })
+          );
           break;
 
-        case 'connect_to_producer':
+        case "connect_to_producer": {
           let connected = false;
           for (const [producerId, consumerId] of producers) {
             if (consumerId === null) {
               producers.set(producerId, clientId);
               consumers.set(clientId, producerId);
               connected = true;
-              console.log(`Consumer:${clientId} Connected to Producer:${producerId}`);
+              console.log(
+                `Consumer:${clientId} Connected to Producer:${producerId}`
+              );
               break;
             }
           }
-          ws.send(JSON.stringify({
-            action: 'connect_to_producer_result',
-            status: connected ? 'success' : 'failure',
-            message: connected ? 'Connected to Device' : 'Unable to Connect'
-          }));
+          ws.send(
+            JSON.stringify({
+              action: "connect_to_producer_result",
+              status: connected ? "success" : "failure",
+              message: connected ? "Connected to Device" : "Unable to Connect",
+            })
+          );
           break;
+        }
 
-        case 'send_data_to_consumer':
+        case "send_data_to_consumer": {
           const consumerId = producers.get(clientId);
           const consumerEmail = consumerEmails.get(consumerId);
-          console.log(`consumerId:${consumerId} and consumerEmail:${consumerEmail}`);
-          
+          console.log(
+            `consumerId:${consumerId} and consumerEmail:${consumerEmail}`
+          );
+
           let result = await User.findOne({ email: consumerEmail });
           let msg;
-          
+
           if (!result) {
             msg = "User not exists!!";
           } else {
@@ -110,54 +160,68 @@ wss.on('connection', (ws) => {
             );
             msg = "Successful update";
           }
-          
-          ws.send(JSON.stringify({
-            action: 'posture_data_update',
-            status: result ? 'success' : 'failure',
-            message: msg
-          }));
+
+          ws.send(
+            JSON.stringify({
+              action: "posture_data_update",
+              status: result ? "success" : "failure",
+              message: msg,
+            })
+          );
           break;
+        }
 
         default:
-          ws.send(JSON.stringify({
-            action: 'error',
-            message: 'Unknown action'
-          }));
+          console.log("Unknown action");
       }
     } catch (error) {
-      console.error('Error processing message:', error);
-      ws.send(JSON.stringify({
-        action: 'error',
-        message: 'Invalid message format'
-      }));
+      console.error("Error processing message:", error);
+      ws.send(
+        JSON.stringify({
+          action: "error",
+          message: "Invalid message format",
+        })
+      );
     }
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     console.log(`Client disconnected: ${clientId}`);
-    
+
     // Clean up maps
     if (producers.has(clientId)) {
       producers.delete(clientId);
     }
-    
+
     for (const [producerId, consumerId] of producers) {
       if (consumerId === clientId) {
         producers.set(producerId, null);
       }
     }
-    
+
     if (consumers.has(clientId)) {
       consumers.delete(clientId);
     }
-    
+
     if (consumerEmails.has(clientId)) {
       consumerEmails.delete(clientId);
+    }
+
+    // Remove from client and device maps
+    for (const [email, socket] of clients) {
+      if (socket === ws) {
+        clients.delete(email);
+      }
+    }
+    for (const [email, socket] of devices) {
+      if (socket === ws) {
+        devices.delete(email);
+      }
     }
   });
 });
 
-// Keep the Express routes
+// Express routes remain unchanged
 app.get("/login", async (req, res) => {
   const { email, password } = req.body;
   let result = await User.findOne({ email });
@@ -180,7 +244,7 @@ app.get("/login", async (req, res) => {
 app.post("/signin", async (req, res) => {
   const { name, email, password } = req.body;
   let result = await User.findOne({ email });
-  
+
   if (result) {
     res.send({
       status: 400,

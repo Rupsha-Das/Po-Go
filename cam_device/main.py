@@ -43,7 +43,7 @@ VIDEO_SOURCE = 0
 # VIDEO_SOURCE="E:\Frosthacks\WhatsApp Image 2025-02-09 at 00.44.05_e472f090.jpg"
 # VIDEO_SOURCE = "https://192.168.79.74:8080/video"
 
-LOOP_DELAY = 0.03
+LOOP_DELAY = 0.3
 
 brk = False  # Global flag to stop
 
